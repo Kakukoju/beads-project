@@ -1,0 +1,52 @@
+# -*- coding: utf-8 -*-
+from sqlalchemy import create_engine, text
+import pandas as pd
+
+# --- 1. 配置資訊 (請填入你的 RDS 資訊) ---
+DB_USER = "harryguo"
+DB_PASS = "skyla168"
+DB_HOST = "database-1.cfutwrwyrxts.ap-northeast-1.rds.amazonaws.com"
+DB_PORT = "5432"
+DB_NAME = "beadsdb"
+
+# 建立連線字串
+DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+
+def test_connection():
+    try:
+        # 2. 建立連線引擎
+        engine = create_engine(DATABASE_URL)
+        
+        print(f"🚀 嘗試連線至 RDS: {DB_HOST}...")
+        
+        with engine.connect() as connection:
+            # 3. 測試簡單查詢 (PostgreSQL 語法)
+            # 繁體中文註解：查詢剛剛遷移成功的 production_Plan 資料表
+            query = text('SELECT * FROM "production_Plan" LIMIT 5')
+            result = connection.execute(query)
+            
+            print("✅ 連線成功！以下為 production_Plan 前 5 筆資料：")
+            print("-" * 50)
+            
+            # 使用 Pandas 漂亮地印出表格 (非必須，但方便觀察)
+            df = pd.read_sql_query(query, engine)
+            if df.empty:
+                print("資料表目前是空的，但連線是正常的。")
+            else:
+                print(df)
+            
+            print("-" * 50)
+            
+            # 4. 測試中文資料表查詢
+            print("\n🚀 嘗試測試中文資料表 [限制OR插單]...")
+            rush_query = text('SELECT * FROM "限制OR插單" LIMIT 3')
+            df_rush = pd.read_sql_query(rush_query, engine)
+            print("✅ 中文資料表讀取正常：")
+            print(df_rush)
+
+    except Exception as e:
+        print("\n❌ 連線失敗！錯誤訊息如下：")
+        print(str(e))
+
+if __name__ == "__main__":
+    test_connection()
