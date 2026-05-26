@@ -19,6 +19,11 @@ import requests as http_requests
 from datetime import datetime
 import openpyxl
 import pandas as pd
+from qbi_qr_rds_sync import (
+    DEFAULT_QBI_QR_EXCEL_PATH,
+    start_qbi_qr_excel_watcher,
+    sync_qbi_qr_excel_to_rds,
+)
 
 # 引入排程 API 模組
 import scheduler_api
@@ -96,6 +101,54 @@ for d in [CALC_DIR, os.path.join(BASE_DIR, "outputs"), EXPORTS_DIR, EXCEL_DATA_D
 UPLOAD_API_KEY = os.environ.get('UPLOAD_API_KEY', 'beadsops-upload-key')
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+
+# ---------- Qbi QR Excel → RDS watchdog sync ----------
+QBI_QR_EXCEL_PATH = os.environ.get("QBI_QR_EXCEL_PATH", DEFAULT_QBI_QR_EXCEL_PATH)
+
+
+def start_qbi_qr_watcher_once():
+    if os.environ.get("QBI_QR_WATCH_ENABLED", "1") != "1":
+        logging.info("[QbiQR] Excel watcher disabled by QBI_QR_WATCH_ENABLED")
+        return None
+    try:
+        return start_qbi_qr_excel_watcher(app, db, QBI_QR_EXCEL_PATH)
+    except Exception as e:
+        logging.error(f"[QbiQR] Failed to start Excel watcher: {e}")
+        return None
+
+
+start_qbi_qr_watcher_once()
+
+
+@app.route("/api/qbi-qr/sync", methods=["POST"])
+def sync_qbi_qr_lookup_tables():
+    try:
+        result = sync_qbi_qr_excel_to_rds(db, QBI_QR_EXCEL_PATH)
+        return jsonify(result)
+    except Exception as e:
+        logging.error(f"[QbiQR] Manual sync failed: {traceback.format_exc()}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/qbi-qr/status", methods=["GET"])
+def qbi_qr_lookup_status():
+    try:
+        rows = db.session.execute(text("""
+            SELECT 'disc_types' AS table_name, COUNT(*)::int AS count FROM qbi_qr.disc_types
+            UNION ALL
+            SELECT 'markers' AS table_name, COUNT(*)::int AS count FROM qbi_qr.markers
+            UNION ALL
+            SELECT 'panels' AS table_name, COUNT(*)::int AS count FROM qbi_qr.panels
+            ORDER BY table_name
+        """)).fetchall()
+        return jsonify({
+            "ok": True,
+            "excel_path": QBI_QR_EXCEL_PATH,
+            "counts": {row[0]: row[1] for row in rows},
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 # ---------- 核心工具：從 RDS 獲取名稱字典 ----------
@@ -972,15 +1025,35 @@ TEMP_LOG_DIR = os.path.join(TEMP_DIR, 'log')
 os.makedirs(TEMP_LOG_DIR, exist_ok=True)
 
 def _parse_tutti_excel(path):
-    """Parse Qbi製程記錄表 Excel into tutti_work_orders form_data format."""
+    """Parse Qbi製程記錄表 Excel into tutti_work_orders form_data format.
+    Returns a list of form_data dicts, one per OW/ow sheet."""
     wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
-    ws = wb['ow']
+    ow_sheets = [s for s in wb.sheetnames if s.lower().startswith('ow')]
+    if not ow_sheets:
+        wb.close()
+        raise ValueError('Excel 中找不到 OW/ow 開頭的 sheet')
+    results = []
+    for sheet_name in ow_sheets:
+        results.append(_parse_tutti_sheet(wb, sheet_name))
+    wb.close()
+    return results
+
+
+def _parse_tutti_sheet(wb, sheet_name):
+    """Parse a single OW sheet."""
+    import re
+    ws = wb[sheet_name]
 
     def cv(row, col):
         v = ws.cell(row, col).value
         if v is None: return ''
         if hasattr(v, 'isoformat'): return v.isoformat()[:10]
-        return str(v).strip()
+        s = str(v).strip()
+        # Parse "生產日期： 2026 年 3 月 5 日" format
+        m = re.search(r'(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日', s)
+        if m:
+            return f'{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}'
+        return s
 
     # Header
     header = {
@@ -1051,12 +1124,12 @@ def _parse_tutti_excel(path):
             'remark': cv(59, 13) if r == 59 else '',
         })
 
-    wb.close()
     return {
         'header': header,
         'materials': materials,
         'wells': {'L1': wellL1, 'L2': wellL2, 'L3': wellL3},
         'postProcess': post,
+        'sheetName': sheet_name,
     }
 
 
@@ -1075,62 +1148,63 @@ def upload_tutti_excel():
     f.save(save_path)
 
     try:
-        form_data = _parse_tutti_excel(save_path)
-        work_order_no = form_data['header']['workOrderNumber']
-        lot_no = form_data['header']['lotNo']
+        form_data_list = _parse_tutti_excel(save_path)
+        results = []
 
-        if not work_order_no:
-            raise ValueError('Excel 中工單號碼為空')
-        if not lot_no:
-            raise ValueError('Excel 中 LOT NO 為空')
+        for form_data in form_data_list:
+            work_order_no = form_data['header']['workOrderNumber']
+            lot_no = form_data['header']['lotNo']
 
-        # Check if lot_no already exists
-        existing = db.session.execute(
-            text("SELECT id, form_data FROM panel_production.tutti_work_orders WHERE lot_no = :lot"),
-            {"lot": lot_no}
-        ).fetchone()
+            if not work_order_no and not lot_no:
+                results.append({'sheet': form_data.get('sheetName', ''), 'skipped': True, 'reason': '工單號碼與 LOT NO 皆為空'})
+                continue
 
-        new_json = json.dumps(form_data, sort_keys=True, ensure_ascii=False)
+            new_json = json.dumps(form_data, sort_keys=True, ensure_ascii=False)
 
-        if existing:
-            old_json = json.dumps(existing[1], sort_keys=True, ensure_ascii=False) if isinstance(existing[1], dict) else json.dumps(json.loads(existing[1]), sort_keys=True, ensure_ascii=False)
-            if old_json == new_json:
-                # Content identical, skip
-                log_line = f"{datetime.now().isoformat()} | UPLOAD | {original_name} | WO={work_order_no} | LOT={lot_no} | SKIPPED (no change)\n"
-                with open(os.path.join(TEMP_LOG_DIR, 'upload.log'), 'a') as lf:
-                    lf.write(log_line)
-                os.remove(save_path)
-                return jsonify({'ok': True, 'skipped': True, 'reason': f'LOT {lot_no} 內容無變更'})
-            # Content changed, update
-            db.session.execute(text("""
-                UPDATE panel_production.tutti_work_orders
-                SET form_data = :form_data, work_order_no = :wo, updated_at = NOW()
-                WHERE lot_no = :lot
-            """), {"form_data": new_json, "wo": work_order_no, "lot": lot_no})
-            db.session.commit()
-            log_line = f"{datetime.now().isoformat()} | UPLOAD | {original_name} | WO={work_order_no} | LOT={lot_no} | UPDATED\n"
+            # Lookup priority: 1) lot_no + work_order_no  2) lot_no  3) work_order_no
+            existing = None
+            if lot_no and work_order_no:
+                existing = db.session.execute(
+                    text("SELECT id, form_data FROM panel_production.tutti_work_orders WHERE lot_no = :lot AND work_order_no = :wo"),
+                    {"lot": lot_no, "wo": work_order_no}
+                ).fetchone()
+            if not existing and lot_no:
+                existing = db.session.execute(
+                    text("SELECT id, form_data FROM panel_production.tutti_work_orders WHERE lot_no = :lot"),
+                    {"lot": lot_no}
+                ).fetchone()
+            if not existing and work_order_no:
+                existing = db.session.execute(
+                    text("SELECT id, form_data FROM panel_production.tutti_work_orders WHERE work_order_no = :wo"),
+                    {"wo": work_order_no}
+                ).fetchone()
+
+            if existing:
+                old_json = json.dumps(existing[1], sort_keys=True, ensure_ascii=False) if isinstance(existing[1], dict) else json.dumps(json.loads(existing[1]), sort_keys=True, ensure_ascii=False)
+                if old_json == new_json:
+                    results.append({'sheet': form_data.get('sheetName', ''), 'work_order_no': work_order_no, 'lot_no': lot_no, 'skipped': True, 'reason': '內容無變更'})
+                    continue
+                db.session.execute(text("""
+                    UPDATE panel_production.tutti_work_orders
+                    SET form_data = :form_data, work_order_no = :wo, lot_no = :lot, updated_at = NOW()
+                    WHERE id = :id
+                """), {"form_data": new_json, "wo": work_order_no or None, "lot": lot_no or None, "id": existing[0]})
+                db.session.commit()
+                results.append({'sheet': form_data.get('sheetName', ''), 'work_order_no': work_order_no, 'lot_no': lot_no, 'updated': True})
+            else:
+                db.session.execute(text("""
+                    INSERT INTO panel_production.tutti_work_orders (work_order_no, lot_no, form_data)
+                    VALUES (:wo, :lot_no, :form_data)
+                """), {"wo": work_order_no or None, "lot_no": lot_no or None, "form_data": new_json})
+                db.session.commit()
+                results.append({'sheet': form_data.get('sheetName', ''), 'work_order_no': work_order_no, 'lot_no': lot_no, 'inserted': True})
+
+            log_line = f"{datetime.now().isoformat()} | UPLOAD | {original_name} | SHEET={form_data.get('sheetName','')} | WO={work_order_no} | LOT={lot_no} | OK\n"
             with open(os.path.join(TEMP_LOG_DIR, 'upload.log'), 'a') as lf:
                 lf.write(log_line)
-            os.remove(save_path)
-            return jsonify({'ok': True, 'updated': True, 'work_order_no': work_order_no, 'lot_no': lot_no})
 
-        # New record, insert
-        db.session.execute(text("""
-            INSERT INTO panel_production.tutti_work_orders (work_order_no, lot_no, form_data)
-            VALUES (:wo, :lot_no, :form_data)
-        """), {"wo": work_order_no, "lot_no": lot_no, "form_data": new_json})
-
-        db.session.commit()
-
-        # Log
-        log_line = f"{datetime.now().isoformat()} | UPLOAD | {original_name} | WO={work_order_no} | LOT={lot_no} | OK\n"
-        with open(os.path.join(TEMP_LOG_DIR, 'upload.log'), 'a') as lf:
-            lf.write(log_line)
-
-        # Delete temp file
         os.remove(save_path)
-
-        return jsonify({'ok': True, 'work_order_no': work_order_no, 'lot_no': lot_no})
+        return jsonify({'ok': True, 'sheets': len(form_data_list), 'results': results})
 
     except Exception as e:
         db.session.rollback()
