@@ -5,3 +5,138 @@
 2026-05-20T15:25:42.342083 | UPLOAD | Qbi製程記錄表_(RL) 腎功能檢查 Renal  15_UMRZ26D036(退).xlsm | WO=UMRZ26D037 | LOT=1-0000007-26041702 | SKIPPED (no change)
 2026-05-20T15:38:15.167342 | UPLOAD | Qbi?????.xlsm | WO=UMRZ26D038 | LOT=1-0000007-26041703 | OK
 2026-05-22T11:38:01.228874 | UPLOAD | Qbi?????.xlsm | WO=UMRZ26D038 | LOT=1-0000007-26041703 | SKIPPED (no change)
+2026-05-26T10:17:43.075991 | UPLOAD | Qbi?????_(AR) ???? Avian & Reptile  26.xlsm | ERROR: Excel 中 LOT NO 為空
+2026-05-26T10:19:24.535969 | UPLOAD | ???LOT   20260525 ?? & 0602 ??_Qbi?????_(GC) ???? General Chem  26_UMRZ26E050.xlsm | WO=UMRZ26E050 | LOT=1-053054-26060201 | OK
+2026-05-26T10:27:23.238822 | UPLOAD | ???LOT   20260525 ?? & 0602 ??_Qbi?????_(GC) ???? General Chem  26_UMRZ26E050.xlsm | WO=UMRZ26E050 | LOT=1-053054-26060201 | SKIPPED (no change)
+2026-05-26T10:32:28.752522 | UPLOAD | ???LOT   20260525 ?? & 0602 ??_Qbi?????_(GC) ???? General Chem  26_UMRZ26E050.xlsm | WO=UMRZ26E050 | LOT=1-053054-26060201 | SKIPPED (no change)
+2026-05-26T10:34:25.369370 | UPLOAD | ???LOT   20260525 ?? & 0602 ??_Qbi?????_(GC) ???? General Chem  26_UMRZ26E050.xlsm | WO=UMRZ26E050 | LOT=1-053054-26060201 | SKIPPED (no change)
+2026-05-26T10:44:36.041962 | UPLOAD | ???LOT   20260525 ?? & 0602 ??_Qbi?????_(GC) ???? General Chem  26_UMRZ26E050.xlsm | WO=UMRZ26E050 | LOT=1-053054-26060201 | SKIPPED (no change)
+2026-05-26T10:45:24.620151 | UPLOAD | ???LOT   20260525 ?? & 0602 ??_Qbi?????_(GC) ???? General Chem  26_UMRZ26E050.xlsm | WO=UMRZ26E050 | LOT=1-053054-26060201 | SKIPPED (no change)
+2026-05-26T11:31:18.655965 | UPLOAD | 20260305_Qbi?????_Optimum Wellness  37_UMRZ26B042(?).xlsx | WO=UMRZ26B042 | LOT= | OK
+2026-05-26T11:45:23.924000 | UPLOAD | 20260305_Qbi?????_Optimum Wellness  37_UMRZ26B042(?).xlsx | SHEET=ow | WO=UMRZ26B042 | LOT= | OK
+2026-05-26T13:31:44.275049 | UPLOAD | 20260511建線 & 0513生產 _Qbi製程記錄表_cPL 犬胰腺特异性脂肪酶_UMRZ26E028.xlsx | SHEET=ow | TYPE=water | WO=UMRZ26E028 | LOT= | OK
+2026-05-26T13:31:44.288131 | UPLOAD | 20260511建線 & 0513生產 _Qbi製程記錄表_cPL 犬胰腺特异性脂肪酶_UMRZ26E028.xlsx | SHEET=ow (2) | TYPE=water | WO=UMRZ26E028 | LOT= | OK
+2026-05-26T13:34:09.945867 | UPLOAD | 20260511建線 & 0513生產 _Qbi製程記錄表_cPL 犬胰腺特异性脂肪酶_UMRZ26E028.xlsx | SHEET=ow | TYPE=water | WO=UMRZ26E028 | LOT= | OK
+2026-05-26T13:34:09.958677 | UPLOAD | 20260511建線 & 0513生產 _Qbi製程記錄表_cPL 犬胰腺特异性脂肪酶_UMRZ26E028.xlsx | SHEET=ow (2) | TYPE=water | WO=UMRZ26E028 | LOT= | OK
+2026-05-26T13:34:21.333274 | UPLOAD | 20260305_Qbi製程記錄表_Optimum Wellness  37_UMRZ26B042(退).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26B042 | LOT= | OK
+2026-05-26T13:44:24.247285 | UPLOAD | 20260518 ?? & 0521 ??_Qbi?????_COAG ??_UMRZ26E047.xlsx | SHEET=ow | TYPE=water | WO=UMRZ26E047 | LOT= | OK
+2026-05-26T13:44:24.259811 | UPLOAD | 20260518 ?? & 0521 ??_Qbi?????_COAG ??_UMRZ26E047.xlsx | SHEET=ow (2) | TYPE=water | WO=UMRZ26E047 | LOT= | OK
+2026-05-26T13:52:47.703790 | UPLOAD | 20260518 ?? & 0521 ??_Qbi?????_COAG ??_UMRZ26E047.xlsx | SHEET=ow | TYPE=water | WO=UMRZ26E047 | LOT= | OK
+2026-05-26T13:52:47.718398 | UPLOAD | 20260518 ?? & 0521 ??_Qbi?????_COAG ??_UMRZ26E047.xlsx | SHEET=ow (2) | TYPE=water | WO=UMRZ26E047 | LOT= | OK
+2026-05-26T14:00:03.037476 | UPLOAD | ?QR    20260526 ?? & 0608 ??_Qbi?????_(CO) ???? Core Chem 13_UMRZ26E039 (2).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26E040 | LOT= | OK
+2026-05-26T14:11:58.590663 | UPLOAD | 20260514?? & 0528??_Qbi?????_cCORT????_UMRZ26E036.xlsm | SHEET=ow | TYPE=water | WO=UMRZ26E037 | LOT= | OK
+2026-05-26T14:27:52.728198 | UPLOAD | !!!   20260430建線 & 0504生產_Qbi製程記錄表_(DB) 糖尿病 Diabetes  10_UMRZ26D021(退).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26D021 | LOT= | OK
+2026-05-26T14:27:54.525606 | UPLOAD | 20260408建線 & 0413生產_Qbi製程記錄表_(ST1) Specific Test 1_UMRZ26D018(退).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26D018 | LOT= | OK
+2026-05-26T14:27:56.347404 | UPLOAD | 20260409建線 & 0416生產Qbi製程記錄表_(GC) 常規生化 General Chem  26_UMRZ26D024.xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26D024 | LOT= | OK
+2026-05-26T14:27:58.002324 | UPLOAD | 20260420建線 & 0422生產_Qbi製程記錄表_比濁_S-DMA_UMRZ26D049.xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26D049 | LOT= | OK
+2026-05-26T14:27:59.747564 | UPLOAD | 20260420建線 & 0422生產_Qbi製程記錄表_比濁_cCRP 犬C反应蛋白_UMRZ26D049.xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26D049 | LOT= | OK
+2026-05-26T14:28:01.592000 | UPLOAD | 20260421建線 & 0423生產_Qbi製程記錄表_比濁_TT4 总甲状腺素_UMRZ26D049.xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26D049 | LOT= | OK
+2026-05-26T14:28:03.387984 | UPLOAD | 20260424建線 & 0429生產_Qbi製程記錄表_(EQ) 馬匹健康检查 Equine  26_UMRZ26D046(退).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26D046 | LOT= | OK
+2026-05-26T14:28:08.398583 | UPLOAD | 20260504建線 & 0506生產_Qbi製程記錄表_Optimum Wellness  37_ UMRZ26D054(退OW3).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26D054 | LOT= | OK
+2026-05-26T14:28:08.411088 | UPLOAD | 20260504建線 & 0506生產_Qbi製程記錄表_Optimum Wellness  37_ UMRZ26D054(退OW3).xlsx | SHEET=ow (1 2) | TYPE=standard | WO=UMRZ26D054 | LOT= | OK
+2026-05-26T14:28:08.423405 | UPLOAD | 20260504建線 & 0506生產_Qbi製程記錄表_Optimum Wellness  37_ UMRZ26D054(退OW3).xlsx | SHEET=ow (3) | TYPE=standard | WO=UMRZ26D054 | LOT= | OK
+2026-05-26T14:28:10.132668 | UPLOAD | Ruby找藥 -   20260417建線 & 0422生產_Qbi製程記錄表_(EL) 電解質 Electrolytes 7_UMRZ26D016  (BEADS已發)(退).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26D016 | LOT= | OK
+2026-05-26T14:28:11.916397 | UPLOAD | Ruby找藥 -- 20260408 建線 & 0506 生產_Qbi製程記錄表_(CO) 核心生化 Core Chem 13_UMRZ26D017   (BEADS已發)(退).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26D017 | LOT= | OK
+2026-05-26T14:28:13.649502 | UPLOAD | Ruby找藥 -- 20260422建線 & 0424生產_Qbi製程記錄表_(RL) 腎功能檢查 Renal  15_UMRZ26D025          0409發 (BEADS已發)(退).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26D025 | LOT= | OK
+2026-05-26T14:28:15.419041 | UPLOAD | Ruby找藥 -- 20260422建線 & 0427生產_Qbi製程記錄表_(UPC) Urine Test_UMRZ26C029(退)    C1 #2         0421發 V 找好已印(退).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26D043 | LOT= | OK
+2026-05-26T14:28:17.450627 | UPLOAD | Ruby找藥 -- 20260422建線 & 0505 生產Qbi製程記錄表_(LV) 肝功能檢查 Liver  11_UMRZ26D044  C1 #2             0421發 V 找好已印(退).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26D044 | LOT= | OK
+2026-05-26T14:28:19.220696 | UPLOAD | Ruby找藥 -- 20260424建線 & 0428生產_Qbi製程記錄表_(GC) 常規生化 General Chem  26_UMRZ26D024     C1#1      0423發   找好待印    待確認使用穴別(退).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26D024 | LOT= | OK
+2026-05-26T14:28:24.461751 | UPLOAD | Ruby找藥 -- 20260427建線 & 0429~0430生產_Qbi製程記錄表_Optimum Wellness  37_ UMRZ26D045    C1#1    & C5  #2  0422發   材料跟備註還沒改好   待確認使用穴別(退 123).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26D045 | LOT= | OK
+2026-05-26T14:28:24.475158 | UPLOAD | Ruby找藥 -- 20260427建線 & 0429~0430生產_Qbi製程記錄表_Optimum Wellness  37_ UMRZ26D045    C1#1    & C5  #2  0422發   材料跟備註還沒改好   待確認使用穴別(退 123).xlsx | SHEET=ow (1 2) | TYPE=standard | WO=UMRZ26D045 | LOT= | OK
+2026-05-26T14:28:24.488418 | UPLOAD | Ruby找藥 -- 20260427建線 & 0429~0430生產_Qbi製程記錄表_Optimum Wellness  37_ UMRZ26D045    C1#1    & C5  #2  0422發   材料跟備註還沒改好   待確認使用穴別(退 123).xlsx | SHEET=ow (3) | TYPE=standard | WO=UMRZ26D045 | LOT= | OK
+2026-05-26T14:28:26.221586 | UPLOAD | 改OK      20260416建線 & 0417生產_Qbi製程記錄表_(RL) 腎功能檢查 Renal  15_UMRZ26D036(退).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26D036 | LOT=1-0000007-26041701 | OK
+2026-05-26T14:28:27.980245 | UPLOAD | 改OK     20260413建線 & 0416生產_Qbi製程記錄表_(EQ) 馬匹健康检查 Equine  26_UMRZ26D019(退).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26D019 | LOT= | OK
+2026-05-26T14:28:29.761776 | UPLOAD | 改OK    20260413建線 & 0427生產_Qbi製程記錄表_(CC) 危重症 Critical Care  26_UMRZ26D020(退).xlsx | SHEET=ow | TYPE=standard | WO=UMRD26D020 | LOT= | OK
+2026-05-26T14:28:31.571062 | UPLOAD | 材料跟上次一樣沒變     20260414建線 & 0417生產_Qbi製程記錄表_(AR) 異寵全套 Avian & Reptile 26_UMRZ26D035(退).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26D035 | LOT= | OK
+2026-05-26T14:29:39.403731 | UPLOAD | 20260505建線 & 0512生產 _Qbi製程記錄表_(ST5) Specific Test 5_UMRZ26E020(退).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26E020 | LOT= | OK
+2026-05-26T14:29:42.252542 | UPLOAD | 20260511建線 & 0513生產 _Qbi製程記錄表_cPL 犬胰腺特异性脂肪酶_UMRZ26E028.xlsx | SHEET=ow | TYPE=water | WO=UMRZ26E028 | LOT= | OK
+2026-05-26T14:29:42.265906 | UPLOAD | 20260511建線 & 0513生產 _Qbi製程記錄表_cPL 犬胰腺特异性脂肪酶_UMRZ26E028.xlsx | SHEET=ow (2) | TYPE=water | WO=UMRZ26E028 | LOT= | OK
+2026-05-26T14:29:45.021538 | UPLOAD | 20260511建線 & 0514生產 _Qbi製程記錄表_fPL 猫胰腺特异性脂肪酶_UMRZ26E029.xlsx | SHEET=ow | TYPE=water | WO=UMRZ26E029 | LOT= | OK
+2026-05-26T14:29:45.039971 | UPLOAD | 20260511建線 & 0514生產 _Qbi製程記錄表_fPL 猫胰腺特异性脂肪酶_UMRZ26E029.xlsx | SHEET=ow (2) | TYPE=water | WO=UMRZ26E029 | LOT= | OK
+2026-05-26T14:29:46.854437 | UPLOAD | 20260512建線 & 0515生產_Qbi製程記錄表_(ST1) Specific Test 1_UMRZ26E034.xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26E034 | LOT= | OK
+2026-05-26T14:29:48.563499 | UPLOAD | 20260512建線 & 0515生產_Qbi製程記錄表_Optimum Wellness  37_ UMRZ26E033(只有ow3)(退).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26E033 | LOT= | OK
+2026-05-26T14:29:50.333837 | UPLOAD | 20260512建線 & 0518生產 _Qbi製程記錄表_(LA) 大動物健康檢查 Large Animal  25_UMRZ26E026_LA2(退).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26E026 | LOT= | OK
+2026-05-26T14:29:53.190678 | UPLOAD | 20260514建線 & 0528生產_Qbi製程記錄表_cPROG 犬孕酮_UMRZ26E037.xlsx | SHEET=ow | TYPE=water | WO=UMRZ26E036 | LOT= | OK
+2026-05-26T14:29:56.019054 | UPLOAD | 20260518 建線 & 0521 生產_Qbi製程記錄表_COAG 凝血_UMRZ26E047.xlsx | SHEET=ow | TYPE=water | WO=UMRZ26E047 | LOT= | OK
+2026-05-26T14:29:56.031897 | UPLOAD | 20260518 建線 & 0521 生產_Qbi製程記錄表_COAG 凝血_UMRZ26E047.xlsx | SHEET=ow (2) | TYPE=water | WO=UMRZ26E047 | LOT= | OK
+2026-05-26T14:29:57.795417 | UPLOAD | 20260519 建線 & 0526 生產_Qbi製程記錄表_(ST2) Specific Test 2_UMRZ26E041(退).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26E041 | LOT= | OK
+2026-05-26T14:29:59.491273 | UPLOAD | 20260519 建線 & 0526 生產_Qbi製程記錄表_(ST3) Specific Test 3_UMRZ26E042   紙本手改料號(退).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26E042 | LOT= | OK
+2026-05-26T14:30:01.745685 | UPLOAD | 20260519 建線 & 0526 生產_Qbi製程記錄表_(ST4) Specific Test 4_UMRZ26E043 紙本手改料號(退).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26E043 | LOT= | OK
+2026-05-26T14:30:03.521293 | UPLOAD | 20260519 建線 & 0526 生產_Qbi製程記錄表_(ST6) Specific Test 6_UMRZ26E044  紙本手改料號.xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26E044 | LOT= | OK
+2026-05-26T14:30:03.586284 | UPLOAD | ~$20260518 建線 & 0521 生產_Qbi製程記錄表_COAG 凝血_UMRZ26E047.xlsx | ERROR: File is not a zip file
+2026-05-26T14:30:05.443467 | UPLOAD | 無QR    20260526 建線 & 0608 生產_Qbi製程記錄表_(CO) 核心生化 Core Chem 13_UMRZ26E039 (1).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26E039 | LOT=1-000001-26060801 | OK
+2026-05-26T14:33:42.626643 | UPLOAD | 20260313_Qbi製程記錄表_Optimum Wellness  37_UMRZ26C005(退3+退12)-1.xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26C005 | LOT= | OK
+2026-05-26T14:33:44.355695 | UPLOAD | 20260313_Qbi製程記錄表_Optimum Wellness  37_UMRZ26C005(退3+退12).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26C005 | LOT= | OK
+2026-05-26T14:33:46.188907 | UPLOAD | 20260331_Qbi製程記錄表_(AR) 異寵全套 Avian & Reptile 26_UMRZ26C006(退).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26C006 | LOT= | OK
+2026-05-26T14:33:47.960329 | UPLOAD | 20260407_Qbi製程記錄表_(LA) 大動物健康檢查 Large Animal  25_UMRZ26C028(退).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26C028 | LOT= | OK
+2026-05-26T14:33:49.647294 | UPLOAD | ☆ 20260327_Qbi製程記錄表_COAG 凝血-UMRZ26C032(RD不退).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26C032 | LOT= | OK
+2026-05-26T14:33:51.409274 | UPLOAD | ☆ 20260331_Qbi製程記錄表_(UPC) Urine Test_UMRZ26C029(退).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26C029 | LOT= | OK
+2026-05-26T14:33:53.097973 | UPLOAD | ☆ 20260407_Qbi製程記錄表_(LV) 肝功能檢查 Liver  11_UMRZ26C027(退).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26C027 | LOT= | OK
+2026-05-26T14:33:54.860508 | UPLOAD | ☆ 20260408_Qbi製程記錄表_(RL) 腎功能檢查 Renal  15_UMRZ26C026 (退).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26C026 | LOT= | OK
+2026-05-26T14:33:56.652383 | UPLOAD | ☆ 20260409_Qbi製程記錄表_(AR) 異寵全套 Avian & Reptile 26_UMRZ26C031(退).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26C031 | LOT= | OK
+2026-05-26T14:33:58.355261 | UPLOAD | ☆ 20260413_Qbi製程記錄表_(ST3) Specific Test 3_UMRZ26C030(退).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26C030 | LOT= | OK
+2026-05-26T15:32:35.450242 | UPLOAD | ???LOT    20260525 ?? & 0601 ??_Qbi?????_(DP) ???? Diagnosis Plus  27_UMRZ26E053.xlsm | SHEET=ow | TYPE=standard | WO=UMRZ26E053 | LOT=1-051052-26060101 | OK
+2026-05-26T15:39:56.540243 | UPLOAD | Qbi?????.xlsm | SHEET=ow | TYPE=standard | WO=UMRZ26D038 | LOT=1-0000007-26041703 | OK
+2026-05-26T15:50:53.708980 | UPLOAD | Qbi?????_(AR) ???? Avian & Reptile  26.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-05-26T15:52:27.824524 | UPLOAD | Qbi?????_(CC) ??? Critical Care  26.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-05-26T15:55:05.406892 | UPLOAD | Qbi?????_(AR) ???? Avian & Reptile  26.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-05-26T15:55:38.524112 | UPLOAD | Qbi?????_(CO) ???? Core Chem 13.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-05-26T15:57:38.338998 | UPLOAD | Qbi?????_(DB) ??? Diabetes  10.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-05-26T15:59:10.666539 | UPLOAD | Qbi?????_(DP) ???? Diagnosis Plus  27.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-05-26T16:00:31.218087 | UPLOAD | Qbi?????_(EL) ??? Electrolytes 7.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-05-26T16:01:41.745476 | UPLOAD | Qbi?????_(EP) ???? Small Exotic Pets  13.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-05-26T16:02:41.798739 | UPLOAD | Qbi?????_(EQ) ?????? Equine  26.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-05-26T16:03:42.576036 | UPLOAD | Qbi?????_(GC) ???? General Chem  26.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-05-26T16:05:37.839294 | UPLOAD | Qbi?????_(LA) ??????? Large Animal  25.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-05-26T16:07:03.915037 | UPLOAD | Qbi?????_(LV) ????? Liver  11.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-05-26T16:08:10.443220 | UPLOAD | Qbi?????_(OW) ???? Optimum Wellness  37 (OW1).xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-05-26T16:09:22.603641 | UPLOAD | Qbi?????_(OW) ???? Optimum Wellness  37 (OW3).xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-05-26T16:10:33.554962 | UPLOAD | Qbi?????_(RL) ????? Renal  15.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT=1-000007-26051206 | OK
+2026-05-26T16:11:48.205705 | UPLOAD | Qbi?????_(ST1) Specific Test 1.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-05-26T16:12:57.657622 | UPLOAD | Qbi?????_(ST2) Specific Test 2.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-05-26T16:13:52.416152 | UPLOAD | Qbi?????_(ST3) Specific Test 3.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-05-26T16:15:13.897370 | UPLOAD | Qbi?????_(ST4) Specific Test 4.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-05-26T16:20:08.713888 | UPLOAD | Qbi?????_(ST5) Specific Test 5.xlsm | SHEET=ow | TYPE=standard | WO=0 | LOT= | OK
+2026-05-26T16:21:08.742933 | UPLOAD | Qbi?????_(ST6) Specific Test 6.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-05-26T16:22:13.532761 | UPLOAD | Qbi?????_(UPC) Urine Test.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-05-26T16:24:10.695645 | UPLOAD | Qbi?????_cCORT????.xlsm | SHEET=ow | TYPE=water | WO=TMRP210231 | LOT= | OK
+2026-05-26T16:24:24.960353 | UPLOAD | Qbi?????_(DB) ??? Diabetes  10.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-05-26T16:25:41.733245 | UPLOAD | Qbi?????_cNBNP ?N??????.xlsm | SHEET=ow | TYPE=water | WO=TMRP210231 | LOT= | OK
+2026-05-26T16:26:44.711473 | UPLOAD | Qbi?????_cPL ?????????.xlsm | SHEET=ow | TYPE=water | WO=TMRP210231 | LOT= | OK
+2026-05-26T16:27:41.640618 | UPLOAD | Qbi?????_cPROG ???.xlsm | SHEET=ow | TYPE=water | WO=TMRP210231 | LOT= | OK
+2026-05-26T16:28:30.211760 | UPLOAD | Qbi?????_cTSH ???????.xlsm | SHEET=ow | TYPE=water | WO=TMRP210231 | LOT= | OK
+2026-05-26T16:29:21.024615 | UPLOAD | Qbi?????_fPL ?????????.xlsm | SHEET=ow | TYPE=water | WO=TMRP210231 | LOT= | OK
+2026-05-26T16:31:11.178000 | UPLOAD | Qbi?????_??_cCRP ?C????.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-05-26T16:32:14.042157 | UPLOAD | Qbi?????_??_PHBR ????.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-05-26T16:33:12.834827 | UPLOAD | Qbi?????_??_SAA ???????A.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-05-26T16:34:17.531730 | UPLOAD | Qbi?????_??_S-DMA.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-05-26T16:35:17.142647 | UPLOAD | Qbi?????_??_TT4 ?????.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-05-26T16:36:20.086763 | UPLOAD | Qbi?????_COAG ??.xlsm | SHEET=ow | TYPE=water | WO=TMRP210231 | LOT= | OK
+2026-05-27T14:11:09.408484 | UPLOAD | ???LOT   20260525 ?? & 0602 ??_Qbi?????_(GC) ???? General Chem  26_UMRZ26E050.xlsm | SHEET=ow | TYPE=standard | WO=UMRZ26E050 | LOT=1-053054-26060201 | OK
+2026-06-01T13:29:48.077372 | UPLOAD | Qbi?????_cCORT????.xlsm | SHEET=ow | TYPE=water | WO=TMRP210231 | LOT= | OK
+2026-06-01T13:31:19.006777 | UPLOAD | Qbi?????_cNBNP ?N??????.xlsm | SHEET=ow | TYPE=water | WO=TMRP210231 | LOT= | OK
+2026-06-01T13:32:47.729333 | UPLOAD | Qbi?????_cPL ?????????.xlsm | SHEET=ow | TYPE=water | WO=TMRP210231 | LOT= | OK
+2026-06-01T13:34:09.050414 | UPLOAD | Qbi?????_cPROG ???.xlsm | SHEET=ow | TYPE=water | WO=TMRP210231 | LOT= | OK
+2026-06-01T13:35:14.553600 | UPLOAD | Qbi?????_cTSH ???????.xlsm | SHEET=ow | TYPE=water | WO=TMRP210231 | LOT= | OK
+2026-06-01T13:36:58.039583 | UPLOAD | Qbi?????_fPL ?????????.xlsm | SHEET=ow | TYPE=water | WO=TMRP210231 | LOT= | OK
+2026-06-01T13:39:41.995831 | UPLOAD | Qbi?????_(ST1) Specific Test 1.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-06-01T13:42:06.033135 | UPLOAD | Qbi?????_(ST1) Specific Test 1.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-06-01T13:43:45.309113 | UPLOAD | Qbi?????_(ST2) Specific Test 2.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-06-01T13:45:06.655421 | UPLOAD | Qbi?????_(ST3) Specific Test 3.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-06-01T13:46:58.434376 | UPLOAD | Qbi?????_(ST4) Specific Test 4.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-06-01T13:49:52.420188 | UPLOAD | Qbi?????_(ST5) Specific Test 5.xlsm | SHEET=ow | TYPE=standard | WO=0 | LOT= | OK
+2026-06-01T13:51:35.762043 | UPLOAD | Qbi?????_(ST6) Specific Test 6.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-06-01T13:51:54.706032 | UPLOAD | Qbi?????_(ST6) Specific Test 6.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-06-01T14:47:11.700772 | UPLOAD | ???LOT   20260525 ?? & 0601 ??_Qbi?????_(OW) ???? Optimum Wellness  37 (OW3)_UMRZ26E052.xlsm | SHEET=ow | TYPE=standard | WO=UMRZ26E052 | LOT=1-000093-26060101 | OK
+2026-06-01T14:56:21.894979 | UPLOAD | ???LOT   20260525 ?? & 0603 ??_Qbi?????_(OW) ???? Optimum Wellness  37 (OW12)_UMRZ26E051.xlsm | SHEET=ow | TYPE=standard | WO=UMRZ26E051 | LOT=1-091092-26060301 | OK
+2026-06-02T09:18:58.685013 | UPLOAD | ?QR    20260526 ?? & 0608 ??_Qbi?????_(CO) ???? Core Chem 13_UMRZ26E039 (1).xlsx | SHEET=ow | TYPE=standard | WO=UMRZ26E039 | LOT=1-000001-26060201 | OK
+2026-06-02T09:18:58.702596 | UPLOAD | ?QR    20260526 ?? & 0608 ??_Qbi?????_(CO) ???? Core Chem 13_UMRZ26E039 (1).xlsx | SHEET=ow (2) | TYPE=standard | WO=UMRZ26E039 | LOT=1-000001-26060301 | OK
+2026-06-02T09:58:26.633485 | UPLOAD | Qbi?????_(UPC) Urine Test.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-06-02T09:58:43.456159 | UPLOAD | Qbi?????_(UPC) Urine Test.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-06-02T10:00:52.191579 | UPLOAD | Qbi?????_(EL) ??? Electrolytes 7.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-06-02T10:03:11.768995 | UPLOAD | Qbi?????_(EP) ???? Small Exotic Pets  13.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-06-02T10:04:47.006524 | UPLOAD | Qbi?????_(DB) ??? Diabetes  10.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-06-02T10:09:01.875362 | UPLOAD | Qbi?????_(CC) ??? Critical Care  26.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-06-02T10:11:46.062357 | UPLOAD | Qbi?????_(AR) ???? Avian & Reptile  26.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-06-02T10:17:46.737350 | UPLOAD | Qbi?????_(CO) ???? Core Chem 13.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK
+2026-06-02T10:22:17.780333 | UPLOAD | Qbi?????_(DP) ???? Diagnosis Plus  27.xlsm | SHEET=ow | TYPE=standard | WO=TMRP210231 | LOT= | OK

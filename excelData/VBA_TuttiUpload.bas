@@ -14,9 +14,12 @@ Private Sub UploadTuttiForm()
     Dim fileName As String
     fileName = ThisWorkbook.Name
     
-    ' --- 複製一份暫存檔避免檔案鎖定 ---
+    ' --- 複製一份暫存檔避免檔案鎖定（用固定名避免特殊字元問題）---
     Dim tmpPath As String
-    tmpPath = Environ("TEMP") & "\" & fileName
+    tmpPath = Environ("TEMP") & "\vba_tutti_upload.tmp"
+    On Error Resume Next
+    Kill tmpPath
+    On Error GoTo 0
     ThisWorkbook.SaveCopyAs tmpPath
     
     ' --- 讀取暫存檔為 binary ---
@@ -27,7 +30,9 @@ Private Sub UploadTuttiForm()
     fileStream.LoadFromFile tmpPath
     
     ' --- 刪除暫存檔 ---
+    On Error Resume Next
     Kill tmpPath
+    On Error GoTo 0
     
     ' --- 組裝 multipart boundary ---
     Dim boundary As String
