@@ -29,6 +29,9 @@ from qbi_qr_rds_sync import (
 import scheduler_api
 importlib.reload(scheduler_api)
 
+# 引入 AI 排程分析模組
+from ai_schedule import ai_schedule_bp
+
 app = Flask(__name__)
 CORS(app)
 
@@ -44,7 +47,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     "pool_pre_ping": True,
     "pool_recycle": 300,
-    "connect_args": {"options": "-csearch_path=panel_production,schedule,public"}
+    "connect_args": {"options": "-csearch_path=P01_formualte_schedule,panel_production,schedule,public"}
 }
 
 db = SQLAlchemy(app)
@@ -86,6 +89,25 @@ with app.app_context():
     except Exception as e:
         db.session.rollback()
         logging.error(f"Failed to initialize panel_production schema/table: {e}")
+
+# ---------- Register AI Schedule Blueprint ----------
+app.register_blueprint(ai_schedule_bp)
+
+# ---------- Initialize P01_formualte_schedule schema for AI schedule tables ----------
+with app.app_context():
+    try:
+        db.session.execute(text("""
+            CREATE SCHEMA IF NOT EXISTS "P01_formualte_schedule";
+        """))
+        db.session.commit()
+        # Import models so SQLAlchemy metadata knows about them
+        from ai_schedule import models  # noqa: F401
+        # Create all tables defined in ai_schedule/models.py (schema-qualified)
+        db.create_all()
+        logging.info("P01_formualte_schedule schema and AI schedule tables initialized successfully.")
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Failed to initialize AI schedule tables: {e}")
 
 # ---------- 2. 路徑配置 ----------
 BASE_DIR       = os.path.dirname(os.path.abspath(__file__))
@@ -404,6 +426,33 @@ def upload_excel():
         sync_data = {'sync_error': str(e)}
 
     return jsonify({'ok': True, 'saved_as': save_name, 'sync': sync_data})
+
+
+# ---------- 路由 6b: 輕量上傳 beads_inventory JSON（VBA 直傳資料）----------
+@app.route('/api/upload-beads-json', methods=['POST'])
+def upload_beads_json():
+    """接收 VBA 直接傳來的 JSON 陣列，寫入 RDS，跳過檔案上傳+pandas解析。"""
+    if request.headers.get('X-Api-Key') != UPLOAD_API_KEY:
+        return jsonify({'ok': False, 'error': 'Unauthorized'}), 401
+
+    data = request.get_json(silent=True)
+    if not data or not isinstance(data, list):
+        return jsonify({'ok': False, 'error': '需要 JSON 陣列'}), 400
+
+    try:
+        df = pd.DataFrame(data)
+        df.columns = [str(c).strip() for c in df.columns]
+        df = df.dropna(how='all')
+
+        with db.engine.begin() as conn:
+            conn.execute(text('TRUNCATE TABLE schedule."beads_Inventory"'))
+        df.to_sql(
+            'beads_Inventory', db.engine,
+            schema='schedule', if_exists='append', index=False,
+        )
+        return jsonify({'ok': True, 'rows': len(df)})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
 
 
 # ---------- 路由 6: SYNC：讀 excelData/ → 解析 → 寫 RDS ----------
@@ -1763,3 +1812,108 @@ def iot_analyze_status_report():
         db.session.rollback()
         logging.error(f"[IoT] Error: {e}")
         return jsonify({'ok': False, 'error': str(e)}), 500
+
+# ---------- Panel Mechanical Materials API ----------
+# Direct integration (no proxy needed — imports calc_engine from mechanic_materials)
+
+import sys as _sys
+_sys.path.insert(0, '/home/ubuntu/mechanic_materials')
+
+@app.route('/api/panel-materials', methods=['GET'])
+def api_panel_materials():
+    """Calculate and return panel material requirements."""
+    try:
+        from calc_engine import calculate_all_materials
+        start_date = request.args.get('start_date')
+        result = calculate_all_materials(start_date)
+        # Sanitize NaN/Inf values that aren't valid JSON
+        clean = json.loads(json.dumps(_sanitize_for_json(result)))
+        return jsonify({'ok': True, **clean})
+    except Exception as e:
+        logging.error(f"[Panel Materials] {e}")
+        import traceback; traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+def _sanitize_for_json(obj):
+    """Recursively replace NaN/Inf with None for JSON serialization."""
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    elif isinstance(obj, dict):
+        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [_sanitize_for_json(i) for i in obj]
+    return obj
+
+
+@app.route('/api/panel-materials/generate-excel', methods=['POST'])
+def api_panel_materials_gen_excel():
+    """Generate output Excel file."""
+    try:
+        from calc_engine import calculate_all_materials
+        from excel_writer import generate_output_excel
+        data = request.get_json() or {}
+        start_date = data.get('start_date')
+        result = calculate_all_materials(start_date)
+        output_path = generate_output_excel(result)
+        filename = os.path.basename(output_path)
+        return jsonify({'ok': True, 'filename': filename})
+    except Exception as e:
+        logging.error(f"[Panel Materials Excel] {e}")
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/panel-materials/download/<filename>', methods=['GET'])
+def api_panel_materials_download(filename):
+    """Download generated Excel file."""
+    output_dir = '/home/ubuntu/mechanic_materials/Exceldata/output'
+    filepath = os.path.join(output_dir, filename)
+    if not os.path.exists(filepath):
+        return jsonify({'ok': False, 'error': 'File not found'}), 404
+    return send_file(filepath, as_attachment=True, download_name=filename)
+
+
+@app.route('/api/panel-materials/output-files', methods=['GET'])
+def api_panel_materials_list_files():
+    """List available output files."""
+    output_dir = '/home/ubuntu/mechanic_materials/Exceldata/output'
+    os.makedirs(output_dir, exist_ok=True)
+    files = []
+    for f in sorted(glob.glob(os.path.join(output_dir, '*.xlsx')), reverse=True):
+        stat = os.stat(f)
+        files.append({
+            'filename': os.path.basename(f),
+            'size': stat.st_size,
+            'modified': datetime.fromtimestamp(stat.st_mtime).isoformat(),
+        })
+    return jsonify({'ok': True, 'files': files})
+
+
+@app.route('/api/panel-materials/sync', methods=['POST'])
+def api_panel_materials_sync():
+    """Sync Excel reference data to RDS."""
+    try:
+        from scripts.sync_excel_to_rds import sync_excel_to_rds
+        sync_excel_to_rds()
+        return jsonify({'ok': True, 'message': 'Sync complete'})
+    except Exception as e:
+        logging.error(f"[Panel Materials Sync] {e}")
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/panel-materials/upload-stock', methods=['POST'])
+def api_panel_materials_upload_stock():
+    """Upload a stock EXPORT_YYYYMMDD.xlsx file."""
+    import re as _re
+    if 'file' not in request.files:
+        return jsonify({'ok': False, 'error': '未選擇檔案'}), 400
+    file = request.files['file']
+    filename = file.filename or ''
+    # Validate filename format: EXPORT_YYYYMMDD.xlsx
+    if not _re.match(r'^EXPORT_\d{8}\.xlsx$', filename):
+        return jsonify({'ok': False, 'error': f'檔名格式錯誤，必須為 EXPORT_YYYYMMDD.xlsx（收到: {filename}）'}), 400
+    dest = os.path.join('/home/ubuntu/mechanic_materials/Exceldata', filename)
+    file.save(dest)
+    return jsonify({'ok': True, 'filename': filename, 'message': f'已上傳: {filename}'})

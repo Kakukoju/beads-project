@@ -1519,13 +1519,25 @@ def generate_schedule(db, target_date, resource_config=None,
         rc = dict(resource_config) if resource_config else {}
         _holidays = rc.get('holidays', [])
 
-        # ── Horizon：target_date 到本週日（含）的 calendar days ──────────────
+        # ── Horizon：target_date 到下週日（含）的 calendar days ──────────────
+        # 如果本週剩餘工作天不足（≤4天），自動延伸到下週日
         # 六日預設為 holidays（BeadResource 預設勾選），但加班時使用者可取消勾選
-        # → horizon 永遠跑到週日，實際能不能排由 forbidden_day_offsets 決定
+        # → horizon 永遠跑到目標週日，實際能不能排由 forbidden_day_offsets 決定
         start_dt     = datetime.strptime(target_date, "%Y-%m-%d")
         start_wd     = start_dt.weekday()            # Mon=0 … Sun=6
         days_to_sun  = 6 - start_wd                  # 距本週日天數
         horizon_days = days_to_sun + 1               # +1 包含 target 當天
+
+        # 計算本週可用工作天：若不足 5 天則延伸到下週日（+7）
+        holiday_wdays_check = {_WD_MAP[h] for h in (_holidays or []) if h in _WD_MAP}
+        avail_days_this_week = sum(
+            1 for d in range(horizon_days)
+            if (start_dt + timedelta(days=d)).weekday() not in holiday_wdays_check
+        )
+        if avail_days_this_week < 5:
+            horizon_days += 7  # 延伸到下週日
+            print(f"[排程] 本週僅剩 {avail_days_this_week} 個工作天，自動延伸到下週日")
+
         end_dt       = start_dt + timedelta(days=horizon_days - 1)
         wd_names = ['一','二','三','四','五','六','日']
         print(f"[排程] {target_date}（{wd_names[start_wd]}）"
