@@ -90,6 +90,55 @@ with app.app_context():
         db.session.rollback()
         logging.error(f"Failed to initialize panel_production schema/table: {e}")
 
+# ---------- Initialize batch_build_line_status and batch_build_line_history tables ----------
+with app.app_context():
+    try:
+        db.session.execute(text("""
+            CREATE TABLE IF NOT EXISTS panel_production.batch_build_line_status (
+                id                  SERIAL PRIMARY KEY,
+                batch_key           VARCHAR(100) NOT NULL UNIQUE,
+                classification      VARCHAR(20) NOT NULL CHECK (classification IN ('d_lot', 'bigD_lot', 'u_lot')),
+                batch_number        VARCHAR(50) NOT NULL,
+                status              VARCHAR(30) NOT NULL DEFAULT '未建線',
+                modification_count  INTEGER NOT NULL DEFAULT 0,
+                last_transition_at  TIMESTAMP,
+                last_operator       VARCHAR(50),
+                created_at          TIMESTAMP DEFAULT NOW(),
+                updated_at          TIMESTAMP DEFAULT NOW()
+            );
+        """))
+        db.session.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_batch_status_key
+                ON panel_production.batch_build_line_status (batch_key);
+        """))
+        db.session.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_batch_status_batch_number
+                ON panel_production.batch_build_line_status (batch_number);
+        """))
+        db.session.execute(text("""
+            CREATE TABLE IF NOT EXISTS panel_production.batch_build_line_history (
+                id                  SERIAL PRIMARY KEY,
+                batch_key           VARCHAR(100) NOT NULL,
+                previous_status     VARCHAR(30) NOT NULL,
+                new_status          VARCHAR(30) NOT NULL,
+                modification_count  INTEGER NOT NULL,
+                transitioned_at     TIMESTAMP NOT NULL DEFAULT NOW(),
+                operator            VARCHAR(50),
+                work_order_no       VARCHAR(50),
+                lot_no              VARCHAR(50),
+                created_at          TIMESTAMP DEFAULT NOW()
+            );
+        """))
+        db.session.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_batch_history_key
+                ON panel_production.batch_build_line_history (batch_key, transitioned_at DESC);
+        """))
+        db.session.commit()
+        logging.info("batch_build_line_status and batch_build_line_history tables initialized successfully.")
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Failed to initialize batch_build_line tables: {e}")
+
 # ---------- Register AI Schedule Blueprint ----------
 app.register_blueprint(ai_schedule_bp)
 
@@ -141,6 +190,105 @@ def start_qbi_qr_watcher_once():
 
 
 start_qbi_qr_watcher_once()
+
+
+# ---------- Batch Classifier Utility ----------
+def classify_batch(reagent_name1: str, batch1: str, reagent_name2: str, batch2: str) -> list:
+    """
+    Classify well reagents into batch types and return Batch_Keys.
+
+    Classification rules:
+    - reagentName1 starting with lowercase 't' followed by uppercase letter → d_lot
+    - reagentName1 otherwise → bigD_lot
+    - reagentName2 → always u_lot
+
+    Returns list of dicts: [{"batch_key": str, "classification": str, "batch_number": str}]
+    """
+    results = []
+    if reagent_name1 and batch1:
+        if reagent_name1.startswith('t') and len(reagent_name1) > 1 and reagent_name1[1].isupper():
+            classification = 'd_lot'
+        else:
+            classification = 'bigD_lot'
+        results.append({
+            "batch_key": f"{batch1}::{classification}",
+            "classification": classification,
+            "batch_number": batch1
+        })
+    if reagent_name2 and batch2:
+        results.append({
+            "batch_key": f"{batch2}::u_lot",
+            "classification": "u_lot",
+            "batch_number": batch2
+        })
+    return results
+
+
+# ---------- Batch Status Transition Logic ----------
+def transition_batch_status(batch_key: str, classification: str, batch_number: str,
+                            operator: str, work_order_no: str, lot_no: str) -> dict:
+    """
+    Perform status transition for a batch_key.
+    - First transition (no existing record): INSERT with status "已建線", modification_count=0
+    - Subsequent transitions: UPDATE to "已改線(n)" with incremented modification_count
+    - Always writes a history record.
+    Returns the new status record dict.
+    """
+    now = datetime.now()
+
+    # Fetch current status
+    row = db.session.execute(text("""
+        SELECT status, modification_count FROM panel_production.batch_build_line_status
+        WHERE batch_key = :key
+    """), {'key': batch_key}).fetchone()
+
+    if row is None:
+        # First time: 未建線 → 已建線
+        previous_status = '未建線'
+        new_status = '已建線'
+        new_count = 0
+        db.session.execute(text("""
+            INSERT INTO panel_production.batch_build_line_status
+                (batch_key, classification, batch_number, status, modification_count,
+                 last_transition_at, last_operator, updated_at)
+            VALUES (:key, :cls, :bn, :status, :count, :ts, :op, :ts)
+        """), {
+            'key': batch_key, 'cls': classification, 'bn': batch_number,
+            'status': new_status, 'count': new_count, 'ts': now, 'op': operator
+        })
+    else:
+        # Subsequent: 已建線 → 已改線(1), or 已改線(n) → 已改線(n+1)
+        previous_status = row[0]
+        current_count = row[1]
+        new_count = current_count + 1
+        new_status = f'已改線({new_count})'
+        db.session.execute(text("""
+            UPDATE panel_production.batch_build_line_status
+            SET status = :status, modification_count = :count,
+                last_transition_at = :ts, last_operator = :op, updated_at = :ts
+            WHERE batch_key = :key
+        """), {
+            'key': batch_key, 'status': new_status, 'count': new_count,
+            'ts': now, 'op': operator
+        })
+
+    # Write history record
+    db.session.execute(text("""
+        INSERT INTO panel_production.batch_build_line_history
+            (batch_key, previous_status, new_status, modification_count,
+             transitioned_at, operator, work_order_no, lot_no)
+        VALUES (:key, :prev, :new, :count, :ts, :op, :wo, :lot)
+    """), {
+        'key': batch_key, 'prev': previous_status, 'new': new_status,
+        'count': new_count, 'ts': now, 'op': operator, 'wo': work_order_no, 'lot': lot_no
+    })
+
+    return {
+        'batch_key': batch_key,
+        'previous_status': previous_status,
+        'new_status': new_status,
+        'modification_count': new_count
+    }
 
 
 @app.route("/api/qbi-qr/sync", methods=["POST"])
@@ -1605,15 +1753,258 @@ def confirm_build_line():
                     })
                     baseline_count += 1
 
+        # --- Task 5.1: Extract and deduplicate Batch_Keys from well assignments ---
+        unique_batches = {}  # keyed by batch_key to deduplicate
+        for panel in panels:
+            assignments = panel.get('assignments', [])
+            for assignment in assignments:
+                reagent_name1 = assignment.get('reagentName1', '')
+                batch1 = assignment.get('batch1', '')
+                reagent_name2 = assignment.get('reagentName2', '')
+                batch2 = assignment.get('batch2', '')
+                batch_entries = classify_batch(reagent_name1, batch1, reagent_name2, batch2)
+                for entry in batch_entries:
+                    unique_batches[entry['batch_key']] = entry
+
+        # --- Task 5.2: Call transition_batch_status for each unique Batch_Key ---
+        operator = data.get('operator', 'system')
+        # Use the first panel's work_order_no and lot_no for context
+        request_work_order_no = panels[0].get('workOrder', '') if panels else ''
+        request_lot_no = panels[0].get('lotNo', '') if panels else ''
+        status_transitions = []
+        status_errors = []
+
+        for batch_key, batch_info in unique_batches.items():
+            try:
+                result = transition_batch_status(
+                    batch_key=batch_info['batch_key'],
+                    classification=batch_info['classification'],
+                    batch_number=batch_info['batch_number'],
+                    operator=operator,
+                    work_order_no=request_work_order_no,
+                    lot_no=request_lot_no
+                )
+                status_transitions.append(result)
+            except Exception as trans_err:
+                app.logger.error(f"Batch status transition failed for {batch_key}: {trans_err}")
+                status_errors.append({'batch_key': batch_key, 'error': str(trans_err)})
+
         db.session.commit()
-        return jsonify({
+
+        # --- Task 5.3: Include status_transitions in the success response ---
+        response = {
             'ok': True,
             'dispatch_count': dispatch_count,
             'baseline_count': baseline_count,
             'dispatched_at': dispatched_at.isoformat(),
-        })
+            'status_transitions': status_transitions,
+        }
+        if status_errors:
+            response['status_errors'] = status_errors
+        return jsonify(response)
     except Exception as e:
         db.session.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+# ---------- Batch Status Query API ----------
+@app.route('/api/tutti-production/batch-status', methods=['GET'])
+def get_batch_status():
+    """Query batch build-line statuses for a work order by lot_no or work_order_no."""
+    try:
+        lot_no = request.args.get('lot_no', '').strip()
+        work_order_no = request.args.get('work_order_no', '').strip()
+
+        if not lot_no and not work_order_no:
+            return jsonify({'ok': False, 'error': '需提供 lot_no 或 work_order_no 參數'}), 400
+
+        # Look up the work order
+        if lot_no:
+            wo_row = db.session.execute(text("""
+                SELECT work_order_no, lot_no, form_data
+                FROM panel_production.tutti_work_orders
+                WHERE lot_no = :lot
+                ORDER BY updated_at DESC LIMIT 1
+            """), {'lot': lot_no}).fetchone()
+        else:
+            wo_row = db.session.execute(text("""
+                SELECT work_order_no, lot_no, form_data
+                FROM panel_production.tutti_work_orders
+                WHERE work_order_no = :wo
+                ORDER BY updated_at DESC LIMIT 1
+            """), {'wo': work_order_no}).fetchone()
+
+        if not wo_row:
+            return jsonify({'ok': False, 'error': '找不到指定工單'}), 404
+
+        result_work_order_no = wo_row[0]
+        result_lot_no = wo_row[1]
+        form_data = wo_row[2]
+
+        # Parse form_data (handle both string and dict)
+        if isinstance(form_data, str):
+            form_data = json.loads(form_data)
+
+        wells_data = form_data.get('wells', {})
+
+        # Extract all batch classifications and track which reagentNames map to each batch_key
+        batch_map = {}  # batch_key -> {classification, batch_number, analyze_items: set}
+        for line_key, well_rows in wells_data.items():
+            if not isinstance(well_rows, list):
+                continue
+            for row in well_rows:
+                reagent_name1 = row.get('reagentName1', '') or ''
+                batch1 = row.get('batch1', '') or ''
+                reagent_name2 = row.get('reagentName2', '') or ''
+                batch2 = row.get('batch2', '') or ''
+
+                entries = classify_batch(reagent_name1, batch1, reagent_name2, batch2)
+                for entry in entries:
+                    bk = entry['batch_key']
+                    if bk not in batch_map:
+                        batch_map[bk] = {
+                            'classification': entry['classification'],
+                            'batch_number': entry['batch_number'],
+                            'analyze_items': set()
+                        }
+                    # Track which reagentNames produced this batch_key
+                    if entry['classification'] == 'u_lot' and reagent_name2:
+                        batch_map[bk]['analyze_items'].add(reagent_name2)
+                    elif entry['classification'] in ('d_lot', 'bigD_lot') and reagent_name1:
+                        batch_map[bk]['analyze_items'].add(reagent_name1)
+
+        # Query batch_build_line_status for each batch_key
+        batches_response = []
+        for batch_key, info in batch_map.items():
+            status_row = db.session.execute(text("""
+                SELECT status, modification_count, last_transition_at, last_operator
+                FROM panel_production.batch_build_line_status
+                WHERE batch_key = :key
+            """), {'key': batch_key}).fetchone()
+
+            if status_row:
+                status = status_row[0]
+                modification_count = status_row[1]
+                last_transition_at = status_row[2].isoformat() if status_row[2] else None
+                last_operator = status_row[3]
+            else:
+                # Default: no record means "未建線"
+                status = '未建線'
+                modification_count = 0
+                last_transition_at = None
+                last_operator = None
+
+            batches_response.append({
+                'batch_key': batch_key,
+                'classification': info['classification'],
+                'batch_number': info['batch_number'],
+                'status': status,
+                'modification_count': modification_count,
+                'last_transition_at': last_transition_at,
+                'last_operator': last_operator,
+                'analyze_items': sorted(list(info['analyze_items']))
+            })
+
+        return jsonify({
+            'ok': True,
+            'lot_no': result_lot_no,
+            'work_order_no': result_work_order_no,
+            'batches': batches_response
+        })
+
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+# ---------- Batch Status History Query API ----------
+@app.route('/api/tutti-production/batch-status/history', methods=['GET'])
+def get_batch_status_history():
+    """Get the full status transition history for a given Batch_Key."""
+    batch_key = request.args.get('batch_key', '').strip()
+    if not batch_key:
+        return jsonify({'ok': False, 'error': '需提供 batch_key 參數'}), 400
+
+    try:
+        # Query current status from batch_build_line_status
+        status_row = db.session.execute(text("""
+            SELECT status, modification_count
+            FROM panel_production.batch_build_line_status
+            WHERE batch_key = :key
+        """), {'key': batch_key}).fetchone()
+
+        if status_row is None:
+            # No record means 未建線 with no history
+            return jsonify({
+                'ok': True,
+                'batch_key': batch_key,
+                'current_status': '未建線',
+                'modification_count': 0,
+                'history': []
+            })
+
+        current_status = status_row[0]
+        modification_count = status_row[1]
+
+        # Query full history ordered by transitioned_at DESC
+        history_rows = db.session.execute(text("""
+            SELECT previous_status, new_status, transitioned_at, operator, work_order_no, lot_no
+            FROM panel_production.batch_build_line_history
+            WHERE batch_key = :key
+            ORDER BY transitioned_at DESC
+        """), {'key': batch_key}).fetchall()
+
+        history = []
+        for row in history_rows:
+            history.append({
+                'previous_status': row[0],
+                'new_status': row[1],
+                'transitioned_at': row[2].isoformat() if row[2] else None,
+                'operator': row[3],
+                'work_order_no': row[4],
+                'lot_no': row[5]
+            })
+
+        return jsonify({
+            'ok': True,
+            'batch_key': batch_key,
+            'current_status': current_status,
+            'modification_count': modification_count,
+            'history': history
+        })
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+# ---------- Batch Status Query by Batch Number (cross-lot) ----------
+@app.route('/api/tutti-production/batch-status/by-batch', methods=['GET'])
+def get_batch_status_by_batch():
+    """Query batch build-line status by batch_number. Supports cross-lot_code sync."""
+    batch_number = request.args.get('batch_number', '').strip()
+    if not batch_number:
+        return jsonify({'ok': False, 'error': '需提供 batch_number 參數'}), 400
+
+    try:
+        rows = db.session.execute(text("""
+            SELECT batch_key, classification, batch_number, status, modification_count,
+                   last_transition_at, last_operator
+            FROM panel_production.batch_build_line_status
+            WHERE batch_number = :bn
+        """), {'bn': batch_number}).fetchall()
+
+        batches = []
+        for row in rows:
+            batches.append({
+                'batch_key': row[0],
+                'classification': row[1],
+                'batch_number': row[2],
+                'status': row[3],
+                'modification_count': row[4],
+                'last_transition_at': row[5].isoformat() if row[5] else None,
+                'last_operator': row[6],
+            })
+
+        return jsonify({'ok': True, 'batches': batches})
+    except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
