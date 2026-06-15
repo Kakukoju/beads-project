@@ -52,6 +52,29 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
 
 db = SQLAlchemy(app)
 
+# ---------- Initialize persistent sync source state ----------
+with app.app_context():
+    try:
+        db.session.execute(text("CREATE SCHEMA IF NOT EXISTS schedule"))
+        db.session.execute(text("""
+            CREATE TABLE IF NOT EXISTS schedule.sync_source_state (
+                dataset             VARCHAR(100) PRIMARY KEY,
+                source              VARCHAR(20) NOT NULL,
+                row_count           INTEGER,
+                source_updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """))
+        db.session.execute(text("""
+            INSERT INTO schedule.sync_source_state (dataset, source)
+            VALUES ('beads_Inventory', 'json'), ('production_Plan', 'json')
+            ON CONFLICT (dataset) DO NOTHING
+        """))
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Failed to initialize sync_source_state: {e}")
+
 # ---------- Initialize panel_production schema and tutti_work_orders table ----------
 with app.app_context():
     try:
@@ -172,6 +195,32 @@ for d in [CALC_DIR, os.path.join(BASE_DIR, "outputs"), EXPORTS_DIR, EXCEL_DATA_D
 UPLOAD_API_KEY = os.environ.get('UPLOAD_API_KEY', 'beadsops-upload-key')
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+
+def set_sync_source(conn, dataset, source, row_count):
+    conn.execute(text("""
+        INSERT INTO schedule.sync_source_state
+            (dataset, source, row_count, source_updated_at, updated_at)
+        VALUES (:dataset, :source, :row_count, NOW(), NOW())
+        ON CONFLICT (dataset) DO UPDATE SET
+            source = EXCLUDED.source,
+            row_count = EXCLUDED.row_count,
+            source_updated_at = EXCLUDED.source_updated_at,
+            updated_at = NOW()
+    """), {
+        'dataset': dataset,
+        'source': source,
+        'row_count': row_count,
+    })
+
+
+def get_sync_source(dataset):
+    with db.engine.connect() as conn:
+        return conn.execute(text("""
+            SELECT source, source_updated_at, row_count
+            FROM schedule.sync_source_state
+            WHERE dataset = :dataset
+        """), {'dataset': dataset}).fetchone()
 
 
 # ---------- Qbi QR Excel → RDS watchdog sync ----------
@@ -450,6 +499,63 @@ def save_bead_need():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+# ---------- 路由 3b: Bead Compare (人工 vs 系統) ----------
+@app.route('/api/bead-compare', methods=['POST'])
+def bead_compare():
+    try:
+        if 'manual' not in request.files or 'system' not in request.files:
+            return jsonify({"ok": False, "error": "需要上傳 manual 和 system 兩個 Excel 檔"}), 400
+        import tempfile, uuid, sys as _sys2
+        from pathlib import Path
+        _sys2.path.insert(0, BASE_DIR)
+        from bead_compare_manual_vs_system import run_compare
+
+        tmp_dir = tempfile.mkdtemp()
+        manual_file = request.files['manual']
+        system_file = request.files['system']
+        manual_path = Path(tmp_dir) / manual_file.filename
+        system_path = Path(tmp_dir) / system_file.filename
+        output_path = Path(EXPORTS_DIR) / f"bead_compare_{uuid.uuid4().hex[:8]}.xlsx"
+        manual_file.save(str(manual_path))
+        system_file.save(str(system_path))
+
+        code, msg = run_compare(manual_path, system_path, output_path)
+        if code != 0:
+            return jsonify({"ok": False, "error": msg}), 400
+
+        # Read summary and comparison data from output
+        from openpyxl import load_workbook
+        wb = load_workbook(str(output_path), read_only=True)
+        ws = wb['彙總比對_含庫存']
+        headers = [cell.value for cell in next(ws.iter_rows(min_row=1, max_row=1))]
+        table_data = []
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            table_data.append(dict(zip(headers, row)))
+
+        ws_sum = wb['Summary']
+        summary = []
+        for row in ws_sum.iter_rows(min_row=3, max_row=10, values_only=True):
+            if row[0]:
+                summary.append({'item': row[0], 'value': row[1], 'note': row[2] or ''})
+
+        return jsonify({
+            "ok": True,
+            "message": msg,
+            "summary": summary,
+            "table": table_data,
+            "downloadFile": f"/api/download-export/{output_path.name}"
+        })
+    except Exception as e:
+        logging.error(f"bead-compare error: {traceback.format_exc()}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/download-export/<filename>', methods=['GET'])
+def download_export(filename):
+    from flask import send_from_directory
+    return send_from_directory(EXPORTS_DIR, filename, as_attachment=True)
+
+
 # ---------- 路由 4: 執行排程引擎 ----------
 @app.route('/api/run-production-schedule', methods=['POST'])
 def run_production_schedule():
@@ -594,11 +700,91 @@ def upload_beads_json():
 
         with db.engine.begin() as conn:
             conn.execute(text('TRUNCATE TABLE schedule."beads_Inventory"'))
-        df.to_sql(
-            'beads_Inventory', db.engine,
-            schema='schedule', if_exists='append', index=False,
-        )
+            df.to_sql(
+                'beads_Inventory', conn,
+                schema='schedule', if_exists='append', index=False,
+            )
+            set_sync_source(conn, 'beads_Inventory', 'json', len(df))
         return jsonify({'ok': True, 'rows': len(df)})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+# ---------- 路由 6c: 輕量上傳 production_plan JSON（VBA 直傳資料）----------
+@app.route('/api/upload-production-plan-json', methods=['POST'])
+def upload_production_plan_json():
+    """接收 VBA 傳來的 P_plan Reagent JSON。
+    支援全量 (mode=full, 預設) 和增量 (mode=incremental, 僅傳 today 之後的欄位)。
+    增量模式: 保留 DB 中舊日期欄，只更新傳入的日期欄。
+    """
+    if request.headers.get('X-Api-Key') != UPLOAD_API_KEY:
+        return jsonify({'ok': False, 'error': 'Unauthorized'}), 401
+
+    payload = request.get_json(silent=True)
+    if not payload:
+        return jsonify({'ok': False, 'error': '需要 JSON'}), 400
+
+    # 支援兩種格式: 純陣列 (full) 或 {mode, data}
+    if isinstance(payload, list):
+        mode = 'full'
+        data = payload
+    else:
+        mode = payload.get('mode', 'full')
+        data = payload.get('data', [])
+
+    if not isinstance(data, list) or not data:
+        return jsonify({'ok': False, 'error': '需要 data 陣列'}), 400
+
+    try:
+        df = pd.DataFrame(data)
+        df.columns = [str(c).strip() for c in df.columns]
+        df = df.dropna(how='all')
+
+        pn_col = next((c for c in df.columns if re.search(r'panel.*no|panel_no', c, re.I)), None)
+        if pn_col:
+            df = df[df[pn_col].notna() & (df[pn_col].astype(str).str.strip() != '')]
+
+        with db.engine.begin() as conn:
+            existing = [r[0] for r in conn.execute(text(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_schema='schedule' AND table_name='production_Plan'"
+            )).fetchall()]
+            for col in df.columns:
+                if col not in existing:
+                    conn.execute(text(
+                        f'ALTER TABLE schedule."production_Plan" ADD COLUMN "{col}" TEXT'
+                    ))
+
+            if mode == 'incremental' and pn_col:
+                # 增量: 只更新傳入的日期欄，保留舊欄位
+                date_cols = [c for c in df.columns if re.match(r'^\d{4}-\d{2}-\d{2}$', str(c))]
+                if date_cols:
+                    # 先清除這些日期欄的資料 (設為 NULL)
+                    set_clauses = ', '.join(f'"{c}" = NULL' for c in date_cols)
+                    conn.execute(text(f'UPDATE schedule."production_Plan" SET {set_clauses}'))
+                    # 再逐列更新
+                    for _, row in df.iterrows():
+                        panel_no = str(row[pn_col]).strip()
+                        sets = []
+                        params = {'pn': panel_no}
+                        for dc in date_cols:
+                            val = row.get(dc)
+                            param_name = dc.replace('-', '_')
+                            if pd.notna(val):
+                                sets.append(f'"{dc}" = :{param_name}')
+                                params[param_name] = val
+                        if sets:
+                            conn.execute(text(
+                                f'UPDATE schedule."production_Plan" SET {", ".join(sets)} '
+                                f'WHERE "Panel_NO" = :pn'
+                            ), params)
+            else:
+                # 全量: TRUNCATE + INSERT
+                conn.execute(text('TRUNCATE TABLE schedule."production_Plan"'))
+                df.to_sql('production_Plan', conn, schema='schedule',
+                          if_exists='append', index=False)
+            set_sync_source(conn, 'production_Plan', 'json', len(df))
+        return jsonify({'ok': True, 'rows': len(df), 'mode': mode})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
@@ -608,6 +794,16 @@ def upload_beads_json():
 def trigger_sync():
     errors  = []
     results = {}
+    payload = request.get_json(silent=True) or {}
+    force_excel = payload.get('force_excel', [])
+    if force_excel is True:
+        force_excel = ['beads_Inventory', 'production_Plan']
+    elif not isinstance(force_excel, list):
+        force_excel = []
+    force_excel = set(force_excel)
+
+    if force_excel and request.headers.get('X-Api-Key') != UPLOAD_API_KEY:
+        return jsonify({'ok': False, 'error': 'force_excel requires X-Api-Key'}), 401
 
     # ══════════════════════════════════════════════════════════════════════
     # 1. beads_Inventory
@@ -616,29 +812,36 @@ def trigger_sync():
     if not os.path.exists(inv_path):
         errors.append('beads_inventory.xlsm 尚未上傳（請先在 Excel 存檔觸發 VBA 上傳）')
     else:
-        try:
-            df_inv = pd.read_excel(
-                inv_path,
-                sheet_name='BEADS庫存表(202405~',
-                header=4,         # row 5，index=4
-                usecols='A:O',
-                engine='openpyxl',
+        sync_state = get_sync_source('beads_Inventory')
+        if sync_state and sync_state[0] == 'json' and 'beads_Inventory' not in force_excel:
+            results['beads_Inventory'] = (
+                f"SKIP（JSON 為目前資料來源: {sync_state[1]:%m/%d %H:%M}）"
             )
-            df_inv.columns = [str(c).strip() for c in df_inv.columns]
-            df_inv = df_inv.dropna(how='all')
+        else:
+            try:
+                df_inv = pd.read_excel(
+                    inv_path,
+                    sheet_name='BEADS庫存表(202405~',
+                    header=4,         # row 5，index=4
+                    usecols='A:O',
+                    engine='openpyxl',
+                )
+                df_inv.columns = [str(c).strip() for c in df_inv.columns]
+                df_inv = df_inv.dropna(how='all')
 
-            with db.engine.begin() as conn:
-                conn.execute(text('TRUNCATE TABLE schedule."beads_Inventory"'))
-            df_inv.to_sql(
-                'beads_Inventory', db.engine,
-                schema='schedule', if_exists='append', index=False,
-            )
-            results['beads_Inventory'] = f"OK，{len(df_inv)} 筆"
-            print(f"[Sync] beads_Inventory {len(df_inv)} 筆")
-        except Exception as e:
-            msg = f"beads_Inventory 失敗：{e}"
-            errors.append(msg)
-            print(f"[Sync] {msg}\n{traceback.format_exc()}")
+                with db.engine.begin() as conn:
+                    conn.execute(text('TRUNCATE TABLE schedule."beads_Inventory"'))
+                    df_inv.to_sql(
+                        'beads_Inventory', conn,
+                        schema='schedule', if_exists='append', index=False,
+                    )
+                    set_sync_source(conn, 'beads_Inventory', 'excel', len(df_inv))
+                results['beads_Inventory'] = f"OK，{len(df_inv)} 筆"
+                print(f"[Sync] beads_Inventory {len(df_inv)} 筆")
+            except Exception as e:
+                msg = f"beads_Inventory 失敗：{e}"
+                errors.append(msg)
+                print(f"[Sync] {msg}\n{traceback.format_exc()}")
 
     # ══════════════════════════════════════════════════════════════════════
     # 2. production_Plan
@@ -647,11 +850,17 @@ def trigger_sync():
     if not os.path.exists(plan_path):
         errors.append('production_plan.xlsm 尚未上傳（請先在 Excel 存檔觸發 VBA 上傳）')
     else:
-        try:
+        sync_state = get_sync_source('production_Plan')
+        if sync_state and sync_state[0] == 'json' and 'production_Plan' not in force_excel:
+            results['production_Plan'] = (
+                f"SKIP（JSON 為目前資料來源: {sync_state[1]:%m/%d %H:%M}）"
+            )
+        else:
+          try:
             df_raw = pd.read_excel(
                 plan_path,
                 sheet_name='P_plan Reagent',
-                header=1,         # row 2，index=1
+                header=1,
                 engine='openpyxl',
             )
             df_raw.columns = [str(c).strip() for c in df_raw.columns]
@@ -742,16 +951,17 @@ def trigger_sync():
                         ))
                         print(f"[Sync] ADD COLUMN: {col}")
                 conn.execute(text('TRUNCATE TABLE schedule."production_Plan"'))
-            df_plan.to_sql(
-                'production_Plan', db.engine,
-                schema='schedule', if_exists='append', index=False,
-            )
+                df_plan.to_sql(
+                    'production_Plan', conn,
+                    schema='schedule', if_exists='append', index=False,
+                )
+                set_sync_source(conn, 'production_Plan', 'excel', len(df_plan))
             results['production_Plan'] = (
                 f"OK，{len(df_plan)} 筆，{len(date_col_map)} 個日期欄"
             )
             print(f"[Sync] production_Plan {len(df_plan)} 筆")
 
-        except Exception as e:
+          except Exception as e:
             msg = f"production_Plan 失敗：{e}"
             errors.append(msg)
             print(f"[Sync] {msg}\n{traceback.format_exc()}")
@@ -947,6 +1157,7 @@ def run_beads_analysis():
         target_date_str = data.get('date')
         resource        = data.get('resource', {})
         batch_num_start = int(data.get('batch_num_start', 1))
+        inv_threshold   = int(resource.get('inventoryThreshold', 500))
 
         from datetime import date as date_type, timedelta
         from collections import defaultdict
@@ -994,9 +1205,19 @@ def run_beads_analysis():
             if pn: batch_dict[pn] = _extract_numbers(r[1])
 
         inv_data = defaultdict(lambda: {'real_stock': 0.0, 'unstocked': 0.0})
+
+        # 取得 dropletRecord 中所有已滴定完成的 lot (batch)
+        titrated_lots = set()
+        with engine.connect() as conn:
+            dr_rows = conn.execute(text(
+                'SELECT lot FROM "P01_formualte_schedule"."dropletRecord"'
+            )).fetchall()
+        for r in dr_rows:
+            if r[0]: titrated_lots.add(str(r[0]).strip())
+
         with engine.connect() as conn:
             rows = conn.execute(text(
-                'SELECT "PN","工單數","入庫","可使用庫存","累計領用" FROM "beads_Inventory"'
+                'SELECT "PN","工單數","入庫","可使用庫存","累計領用","Batch" FROM "beads_Inventory"'
             )).fetchall()
         for r in rows:
             pn     = _normalize_pn(r[0])
@@ -1004,10 +1225,16 @@ def run_beads_analysis():
             wo_qty = _to_number(r[1])
             accum  = _to_number(r[4])
             in_st  = str(r[2] or '').strip()
-            if avail >= 500:
-                inv_data[pn]['real_stock'] += avail
+            batch  = str(r[5] or '').strip()
             in_st_num = _to_number(in_st) if in_st else 0
-            if avail == 0 and in_st_num > 0 and accum == 0:
+
+            if avail > 0:
+                inv_data[pn]['real_stock'] += avail
+            elif avail == 0 and in_st_num > 0 and accum == 0:
+                # 已凍乾入庫但尚未 QC 放行
+                inv_data[pn]['unstocked'] += wo_qty
+            elif in_st_num == 0 and wo_qty > 0 and batch in titrated_lots:
+                # 已滴定完成 (dropletRecord 有記錄) 但尚未入庫 → WIP
                 inv_data[pn]['unstocked'] += wo_qty
 
         bom_map = defaultdict(list)
@@ -1052,7 +1279,14 @@ def run_beads_analysis():
         bead_needs      = defaultdict(lambda: [0, 0, 0])
         bead_earliest   = {}
         shortage_events = []
-        sim_inv         = {pn: d['real_stock'] + d['unstocked'] for pn, d in inv_data.items()}
+        sim_inv         = {}
+        for pn, d in inv_data.items():
+            total = d['real_stock'] + d['unstocked']
+            is_lipa = 'LIPA' in (bead_to_name.get(pn, '') or '').upper() or 'LIPA' in pn.upper()
+            if not is_lipa and total < inv_threshold:
+                sim_inv[pn] = 0.0
+            else:
+                sim_inv[pn] = total
 
         for d_col in date_cols:
             try:
@@ -1115,7 +1349,11 @@ def run_beads_analysis():
             n          = bead_needs[bpn]
             real_stock = inv_data[bpn]['real_stock']
             unstocked  = inv_data[bpn]['unstocked']
-            total_inv  = real_stock + unstocked
+            is_lipa = 'LIPA' in (bead_to_name.get(bpn, '') or '').upper() or 'LIPA' in bpn.upper()
+            if not is_lipa and (real_stock + unstocked) < inv_threshold:
+                total_inv = 0.0
+            else:
+                total_inv = real_stock + unstocked
             safe_qty   = safe_dict[bpn].get(current_month, 0)
             demand_3w  = n[0] + n[1] + n[2]
             m_batch    = _pick_batch(batch_dict.get(bpn, [0.0]), demand_3w)
@@ -2308,3 +2546,14 @@ def api_panel_materials_upload_stock():
     dest = os.path.join('/home/ubuntu/mechanic_materials/Exceldata', filename)
     file.save(dest)
     return jsonify({'ok': True, 'filename': filename, 'message': f'已上傳: {filename}'})
+
+
+from production_plan_upload_api import register_production_plan_upload_api
+
+register_production_plan_upload_api(
+    app,
+    db,
+    UPLOAD_API_KEY,
+    EXCEL_DATA_DIR,
+    set_sync_source,
+)
