@@ -1754,7 +1754,8 @@ def load_tutti_form():
             ).fetchone()
 
         if not row:
-            return jsonify({"ok": False, "error": "找不到該工單記錄"}), 404
+            identifier = mfg_lot_no or lot_no or work_order or ''
+            return jsonify({"ok": False, "error": f"Tutti 尚未為 mfg_lot_no {identifier} 開工單"}), 404
 
         form_data = row[0]
         if isinstance(form_data, str):
@@ -1915,6 +1916,16 @@ def confirm_build_line():
             if not pos or not lot_no:
                 continue
 
+            # Resolve actual work_order_no if the provided value looks like a lot_code
+            if work_order_no and not any(work_order_no.upper().startswith(p) for p in ('UMR', 'TMR')):
+                resolved = db.session.execute(text("""
+                    SELECT work_order_no FROM panel_production.tutti_work_orders
+                    WHERE lot_no = :lot
+                    ORDER BY updated_at DESC LIMIT 1
+                """), {'lot': lot_no}).fetchone()
+                if resolved and resolved[0]:
+                    work_order_no = resolved[0]
+
             # Write panel_dispatch
             db.session.execute(text("""
                 INSERT INTO panel_production.panel_dispatch
@@ -2009,6 +2020,19 @@ def confirm_build_line():
         # Use the first panel's work_order_no and lot_no for context
         request_work_order_no = panels[0].get('workOrder', '') if panels else ''
         request_lot_no = panels[0].get('lotNo', '') if panels else ''
+
+        # Resolve actual work_order_no from tutti_work_orders if the provided value
+        # looks like a lot_code (all digits) rather than a real work order (UMR*/TMR* prefix)
+        if request_work_order_no and not any(request_work_order_no.upper().startswith(p) for p in ('UMR', 'TMR')):
+            # Provided value is likely a lot_code, look up real work_order_no
+            resolved_wo = db.session.execute(text("""
+                SELECT work_order_no FROM panel_production.tutti_work_orders
+                WHERE lot_no = :lot
+                ORDER BY updated_at DESC LIMIT 1
+            """), {'lot': request_lot_no or request_work_order_no}).fetchone()
+            if resolved_wo and resolved_wo[0]:
+                request_work_order_no = resolved_wo[0]
+
         status_transitions = []
         status_errors = []
 
