@@ -1,0 +1,65 @@
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import { existsSync, readFileSync } from 'node:fs'
+import { fileURLToPath, URL } from 'node:url'
+import { join } from 'node:path'
+
+const mobileDir = fileURLToPath(new URL('../../dropfreeze/Web/', import.meta.url))
+
+function mobileRoutePlugin() {
+  return {
+    name: 'mobile-route',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const pathname = req.url?.split('?')[0] ?? ''
+        if (pathname === '/mobile') {
+          res.statusCode = 302
+          res.setHeader('Location', '/mobile/')
+          res.end()
+          return
+        }
+        if (pathname === '/mobile/' || pathname === '/mobile/index.html') {
+          res.setHeader('Content-Type', 'text/html; charset=utf-8')
+          res.end(readFileSync(join(mobileDir, 'index.html')))
+          return
+        }
+        if (pathname === '/mobile/config.js') {
+          res.setHeader('Content-Type', 'application/javascript; charset=utf-8')
+          res.end('window.API_BASE = window.location.origin;\n')
+          return
+        }
+        if (pathname.startsWith('/mobile/')) {
+          const filename = decodeURIComponent(pathname.slice('/mobile/'.length))
+          const target = join(mobileDir, filename)
+          if (existsSync(target)) {
+            res.end(readFileSync(target))
+            return
+          }
+          res.statusCode = 404
+          res.setHeader('Content-Type', 'application/json; charset=utf-8')
+          res.end(JSON.stringify({ ok: false, error: 'Mobile asset not found', path: filename }))
+          return
+        }
+        next()
+      })
+    },
+  }
+}
+
+export default defineConfig({
+  base: "/beads-ui/",
+  plugins: [mobileRoutePlugin(), react()],
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url))
+    }
+  },
+  server: {
+    host: true,    // 讓內網電腦可連
+    port: 8505,    // 指定 port
+    // 如果後端 Flask 跑在 5000，而前端用 /api 開頭，就打開這段
+    // proxy: {
+    //   '/api': 'http://localhost:5000'
+    // }
+  }
+})
