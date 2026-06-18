@@ -1,0 +1,12 @@
+{
+  "aws": {
+    "q": {
+      "workspaceContext": false
+    }
+  },
+  "mcpServers": {
+    "beads_sqlite_mcp": {
+      "trustExternalTools": true
+    }
+  }
+}

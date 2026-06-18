@@ -1,0 +1,8 @@
+1. 產品生產為 配藥 , 滴定, 凍乾 三工站
+2. 選擇 Beads需求模組exce檔案, sheet"滴定排程需求表", row2為header, column"料號" 為產品唯一代碼, column"品名" 為產品名,column"庫存+滴定"=目前庫存數, column"第一周需求"=第一周需求數量, column"第二周需求"=第二周需求數量, column"第三周需求"=第三周需求數量, build a dic_INV 以料號為key
+3. 選擇 滴定限制exce檔案, sheet"配藥限制", header= row1, colA~colU=PN,	Port數,	數量,	Name,	可用凍乾機,	試劑提交至試劑完成所有滴定需小於此時間,	凍乾時間,	保存期限,	配藥主副手,			交藥時間,	U,D 劑分開生產排程,	滴定後凍乾時間差距 (HR),	配完後續要空著天數,	空閒產能時可優先安排生產,	庫存安排最大量,	前2次不可安排的Mark,	不可放置-20度冰箱 MARK,	限制(一天只能兩輪),	備註, build a dic_Prod 以料號為key
+4. 排列生產計畫: 輸出表格="\\fls341\MBBU_FAB\MB_PD\生管自動化\滴定\空白排程.xlsm", sheet"空白排程", 以columnB, "日期"下一行為header, columnB~columnQ, = 滴定機,	Marker,	凍乾機台,	數量, 	配藥同仁,	日期,	RD給藥時間,	預計滴定時間,	 預計結束 ,	預冷時間,	凍乾時間,	收藥時間,	工單編號,	Lot,	備註,  該工作表 columnB   共有6個"日期"標籤 代表可填入資料區域=row of n日期+2 到 =row of n+1日期-2(n=1~6)
+
+
+
+

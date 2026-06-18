@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>滴定凍乾行動紀錄</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        slate: { 950: '#020617', 900: '#0f172a', 800: '#1e293b' }
+                    },
+                    animation: {
+                        'pulse-fast': 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #020617;
+            color: white;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* 隱藏檔案輸入框 */
+        input[type="file"] {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // ================= 設定區 =================
+        const API_BASE = "https://civilian-sealed-thumbnails-ment.trycloudflare.com";
+
+        // 步驟定義 (hasDetail: 是否顯示額外資訊區塊)
+        const STEPS = [
+            { id: 'receive', label: '收藥' },
+            { id: 'titration_prep', label: '滴定準備', hasDetail: true },
+            { id: 'titration_start', label: '滴定開始' },
+            { id: 'titration_end', label: '滴定結束' },
+            { id: 'fd_prep', label: '凍乾準備', hasDetail: true },
+            { id: 'fd_start', label: '凍乾開始' },
+            { id: 'fd_end', label: '凍乾結束' },
+        ];
+
+        // ================= 圖示組件 =================
+        const IconCheck = () => <svg className="w-5 h-5 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6L9 17l-5-5" /></svg>;
+        const IconLock = () => <svg className="w-5 h-5 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>;
+        const IconCamera = () => <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>;
+        const IconUser = () => <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>;
+        const IconInfo = () => <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>;
+        const IconPlus = () => <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14" /><path d="M5 12h14" /></svg>;
+        const IconScan = () => <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 7V5a2 2 0 0 1 2-2h2" /><path d="M17 3h2a2 2 0 0 1 2 2v2" /><path d="M21 17v2a2 2 0 0 1-2 2h-2" /><path d="M7 21H5a2 2 0 0 1-2-2v-2" /></svg>;
+
+        // === 圖片壓縮工具 ===
+        const compressFile = async (file, { maxWidth = 1024, quality = 0.7 } = {}) => {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.src = event.target.result;
+                    img.onload = () => {
+                        let w = img.width, h = img.height;
+                        // 計算等比例縮放
+                        if (w > maxWidth) {
+                            h = Math.round(h * (maxWidth / w));
+                            w = maxWidth;
+                        }
+                        const canvas = document.createElement('canvas');
+                        canvas.width = w;
+                        canvas.height = h;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, w, h);
+
+                        // 轉回 Blob (JPEG)
+                        canvas.toBlob((blob) => {
+                            if (!blob) return reject(new Error('壓縮失敗'));
+                            // 建立新的 File 物件
+                            const newFile = new File([blob], file.name, {
+                                type: 'image/jpeg',
+                                lastModified: Date.now(),
+                            });
+                            resolve(newFile);
+                        }, 'image/jpeg', quality);
+                    };
+                    img.onerror = (err) => reject(err);
+                };
+                reader.onerror = (err) => reject(err);
+            });
+        };
+        // ================= 主應用程式 =================
+        function App() {
+            const [view, setView] = useState('login');
+            const [user, setUser] = useState('');
+            const [orderList, setOrderList] = useState([]);
+            const [selectedOrder, setSelectedOrder] = useState('');
+            const [stepData, setStepData] = useState({});
+            const [fullDetails, setFullDetails] = useState({});
+            const [loading, setLoading] = useState(false);
+
+            useEffect(() => {
+                const savedUser = localStorage.getItem('beads_user');
+                if (savedUser) {
+                    setUser(savedUser);
+                    fetchOrders();
+                }
+            }, []);
+
+            // 1. 獲取工單列表
+            const fetchOrders = async () => {
+                setLoading(true);
+                try {
+                    const res = await fetch(`${API_BASE}/api/mobile/work-orders`);
+                    const data = await res.json();
+                    if (data.ok) {
+                        setOrderList(data.orders);
+                        setView('select');
+                    } else {
+                        alert('無法載入工單: ' + data.error);
+                    }
+                } catch (e) { alert('網路連線錯誤 (Fetch Orders)'); }
+                setLoading(false);
+            };
+
+            // 2. 選擇工單 (含 5714 檢核)
+            const handleOrderSelect = async (orderId) => {
+                setLoading(true);
+                try {
+                    // (A) 檢查 5714
+                    const checkRes = await fetch(`${API_BASE}/api/mobile/check-access?work_order=${orderId}`);
+                    const checkData = await checkRes.json();
+
+                    if (!checkData.ok) { alert('檢核失敗: ' + checkData.error); setLoading(false); return; }
+                    if (!checkData.allowed) { alert('⛔ ' + checkData.msg); setLoading(false); return; }
+
+                    // (B) 載入狀態
+                    const res = await fetch(`${API_BASE}/api/mobile/status?work_order=${orderId}`);
+                    const data = await res.json();
+                    if (data.ok) {
+                        const parsedSteps = parsePhotoData(data.steps);
+                        setStepData(parsedSteps);
+                        setFullDetails(data.details || {});
+                        setSelectedOrder(orderId);
+                        setView('record');
+                    }
+                } catch (e) { alert('API 錯誤 (Select Order)'); }
+                setLoading(false);
+            };
+
+            // 解析照片字串為陣列
+            const parsePhotoData = (rawSteps) => {
+                const parsed = {};
+                if (!rawSteps) return {};
+                Object.keys(rawSteps).forEach(key => {
+                    const step = rawSteps[key];
+                    const photoList = step.photoName
+                        ? step.photoName.split(';').map(name => ({ url: `${API_BASE}/photos/${name}`, isTemp: false }))
+                        : [];
+                    parsed[key] = { ...step, photos: photoList };
+                });
+                return parsed;
+            };
+
+            // 3. 上傳照片
+            const handleUpload = async (stepId, file) => {
+                // 樂觀更新：先顯示預覽圖
+                const previewUrl = URL.createObjectURL(file);
+                const nowStr = new Date().toTimeString().split(' ')[0];
+
+                setStepData(prev => {
+                    const oldPhotos = prev[stepId]?.photos || [];
+                    return {
+                        ...prev,
+                        [stepId]: {
+                            ...prev[stepId],
+                            timestamp: nowStr,
+                            user: user,
+                            photos: [...oldPhotos, { url: previewUrl, isTemp: true }],
+                            uploading: true
+                        }
+                    };
+                });
+
+                const formData = new FormData();
+                formData.append('work_order', selectedOrder);
+                formData.append('step_id', stepId);
+                formData.append('user', user);
+                formData.append('photo', file);
+
+                try {
+                    // [新增] 壓縮照片
+                    // 顯示上傳中提示，因為壓縮需要一點點時間(約0.5秒)
+                    console.log(`原檔大小: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
+                    const compressedFile = await compressFile(file, { maxWidth: 1280, quality: 0.7 });
+                    console.log(`壓縮後大小: ${(compressedFile.size / 1024 / 1024).toFixed(2)} MB`);
+
+                    const formData = new FormData();
+                    formData.append('work_order', selectedOrder);
+                    formData.append('step_id', stepId);
+                    formData.append('user', user);
+                    // [修改] 這裡傳入壓縮後的檔案
+                    formData.append('photo', compressedFile)
+                    const res = await fetch(`${API_BASE}/api/mobile/upload`, { method: 'POST', body: formData });
+                    const data = await res.json();
+                    if (data.ok) {
+                        // 上傳成功：使用後端回傳的完整照片清單重新渲染
+                        const photoList = data.photoName.split(';').map(name => ({
+                            url: `${API_BASE}/photos/${name}`,
+                            isTemp: false
+                        }));
+
+                        setStepData(prev => ({
+                            ...prev,
+                            [stepId]: {
+                                ...prev[stepId],
+                                timestamp: data.timestamp,
+                                photos: photoList,
+                                uploading: false
+                            }
+                        }));
+                    } else {
+                        alert('上傳失敗: ' + (data.msg || data.error));
+                        // 失敗可考慮回滾狀態
+                    }
+                } catch (e) {
+                    alert('上傳發生網路錯誤');
+                }
+            };
+
+            // 視圖渲染
+            if (view === 'login') return <LoginView onLogin={(u) => { setUser(u); localStorage.setItem('beads_user', u); fetchOrders(); }} />;
+            if (view === 'select') return (
+                <div className="min-h-screen p-4 bg-slate-950 text-white">
+                    <div className="flex justify-between items-center mb-6">
+                        <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent">今日工單</h1>
+                        <div className="text-right">
+                            <span className="text-xs text-slate-400 block">{user}</span>
+                            <button onClick={() => { localStorage.removeItem('beads_user'); setView('login'); }} className="text-xs text-blue-500">登出</button>
+                        </div>
+                    </div>
+                    {loading ? <div className="text-center text-slate-500 mt-20 animate-pulse">載入中...</div> : (
+                        <div className="space-y-3 pb-10">
+                            {orderList.length === 0 ? <div className="text-center text-slate-600 py-10 border border-dashed border-slate-800 rounded-xl">無排程資料</div> :
+                                orderList.map(order => (
+                                    <button key={order} onClick={() => handleOrderSelect(order)}
+                                        className="w-full bg-slate-800 p-4 rounded-xl text-left font-mono text-lg border border-slate-700 active:bg-slate-700 active:scale-95 transition-all flex justify-between items-center shadow-lg">
+                                        <span className="text-slate-200">{order}</span>
+                                        <span className="text-slate-500">➜</span>
+                                    </button>
+                                ))
+                            }
+                        </div>
+                    )}
+                    <button onClick={fetchOrders} className="fixed bottom-6 right-6 w-12 h-12 bg-blue-600 rounded-full shadow-2xl flex items-center justify-center text-white active:bg-blue-500">↻</button>
+                </div>
+            );
+            if (view === 'record') return (
+                <RecordView
+                    order={selectedOrder}
+                    user={user}
+                    steps={STEPS}
+                    stepData={stepData}
+                    fullDetails={fullDetails}
+                    onBack={() => setView('select')}
+                    onUpload={handleUpload}
+                />
+            );
+        }
+
+        // ================= 紀錄作業頁面 =================
+        function RecordView({ order, user, steps, stepData, fullDetails, onBack, onUpload }) {
+            const [freezeLocked, setFreezeLocked] = useState(true); // 凍乾準備鎖定狀態
+
+            // 如果後端已有資料(已確認過機台)，則初始解鎖
+            useEffect(() => {
+                const plan = fullDetails.freezer_plan || "";
+                const actual = fullDetails['凍乾機_1'] || "";
+                // 若資料庫已有記錄且相符，則預設解鎖
+                if (plan && actual && plan === actual) {
+                    setFreezeLocked(false);
+                } else if (actual && !plan) {
+                    // 若有實際值但沒排程，視為已確認
+                    setFreezeLocked(false);
+                }
+            }, [fullDetails]);
+
+            const completedCount = Object.keys(stepData).length;
+            const progress = Math.min((completedCount / steps.length) * 100, 100);
+
+            return (
+                <div className="min-h-screen pb-20 bg-slate-950 text-white">
+                    {/* Header */}
+                    <div className="sticky top-0 z-50 bg-slate-900/95 backdrop-blur border-b border-slate-800 px-4 py-3 flex items-center justify-between shadow-2xl">
+                        <button onClick={onBack} className="text-slate-400 text-2xl px-2 active:text-white">✕</button>
+                        <div className="text-center">
+                            <div className="text-[10px] text-slate-500 uppercase tracking-widest">WORK ORDER</div>
+                            <div className="font-mono font-bold text-lg text-slate-100">{order}</div>
+                        </div>
+                        <div className="w-8"></div>
+                    </div>
+
+                    {/* Timeline */}
+                    <div className="p-5 space-y-6">
+                        {steps.map((step, index) => {
+                            const data = stepData[step.id];
+                            const isCompleted = !!data; // 有時間戳記就算完成
+                            const photoCount = data?.photos?.length || 0;
+
+                            // 鎖定邏輯
+                            const prevStepDone = index === 0 || !!stepData[steps[index - 1].id];
+                            const isStepLocked = !prevStepDone; // 順序鎖
+
+                            // 特殊鎖：凍乾準備
+                            const isFreezeStep = step.id === 'fd_prep';
+                            const isFreezeActionLocked = isFreezeStep && freezeLocked && !isCompleted;
+
+                            // 總開關：如果順序未到，或者特殊鎖未解
+                            const isBtnDisabled = isStepLocked || isFreezeActionLocked;
+
+                            // Active 狀態：順序到了且尚未完成
+                            const isActive = !isCompleted && !isStepLocked;
+
+                            return (
+                                <div key={step.id} className={`relative pl-8 transition-opacity duration-300 ${isStepLocked ? 'opacity-40 grayscale' : 'opacity-100'}`}>
+                                    {/* Line */}
+                                    {index !== steps.length - 1 && (
+                                        <div className={`absolute left-[11px] top-8 bottom-[-24px] w-0.5 transition-colors ${isCompleted ? 'bg-blue-500' : 'bg-slate-800'}`}></div>
+                                    )}
+                                    {/* Dot */}
+                                    <div className={`absolute left-0 top-1 w-6 h-6 rounded-full flex items-center justify-center border-2 z-10 bg-slate-950
+                                        ${isCompleted ? 'border-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]' : isActive ? 'border-amber-400 animate-pulse-fast' : 'border-slate-700'}`}>
+                                        {isCompleted ? <IconCheck /> : isStepLocked ? <IconLock /> : <div className="w-2 h-2 bg-amber-400 rounded-full" />}
+                                    </div>
+
+                                    {/* Card */}
+                                    <div className={`rounded-xl border p-4 transition-all duration-300
+                                        ${isActive ? 'bg-slate-800 border-amber-500/30 shadow-[0_0_20px_rgba(251,191,36,0.15)]' : 'bg-slate-900/30 border-slate-800'}`}>
+
+                                        <div className="flex justify-between items-start mb-2">
+                                            <h3 className={`font-bold text-lg ${isActive ? 'text-white' : 'text-slate-400'}`}>{step.label}</h3>
+                                            {isCompleted && (
+                                                <div className="text-right">
+                                                    <div className="text-xs text-blue-400 font-mono">{data.timestamp.split(' ')[1]}</div>
+                                                    <div className="text-[10px] text-slate-500 flex items-center justify-end gap-1"><IconUser /> {data.user}</div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* 詳細資訊區塊 (Checklist / Scanner) */}
+                                        {step.hasDetail && (
+                                            <DetailSection
+                                                stepId={step.id}
+                                                details={fullDetails}
+                                                order={order}
+                                                onFreezerMatch={(matched) => setFreezeLocked(!matched)}
+                                            />
+                                        )}
+
+                                        {/* 拍照區塊 */}
+                                        <div className="mt-3">
+                                            {/* 按鈕：未被順序鎖定時永遠顯示 */}
+                                            {!isStepLocked && (
+                                                <label className={`
+                                                    flex items-center justify-center gap-2 w-full py-3 rounded-lg font-bold cursor-pointer transition-transform active:scale-95 mb-3
+                                                    ${isBtnDisabled
+                                                        ? 'bg-slate-800 border border-slate-700 text-slate-600 cursor-not-allowed'
+                                                        : photoCount > 0
+                                                            ? 'bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700'
+                                                            : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 text-white shadow-lg shadow-blue-900/20'}
+                                                `}>
+                                                    <input type="file" accept="image/*" capture="environment" disabled={isBtnDisabled}
+                                                        onChange={(e) => { if (e.target.files?.[0]) onUpload(step.id, e.target.files[0]); }} />
+
+                                                    {/* 按鈕文字邏輯 */}
+                                                    {isFreezeActionLocked ? (
+                                                        <><IconScan /> 請先掃描確認機台</>
+                                                    ) : photoCount > 0 ? (
+                                                        <><IconPlus /> 新增照片</>
+                                                    ) : (
+                                                        <><IconCamera /> 紀錄並拍照</>
+                                                    )}
+                                                </label>
+                                            )}
+
+                                            {/* 照片相簿 */}
+                                            {photoCount > 0 && (
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    {data.photos.map((photo, pIdx) => (
+                                                        <div key={pIdx} className="relative aspect-square bg-black rounded-lg border border-slate-700 overflow-hidden group">
+                                                            <img src={photo.url} className={`w-full h-full object-cover transition-opacity ${photo.isTemp ? 'opacity-50' : 'opacity-100'}`} />
+                                                            {photo.isTemp && (
+                                                                <div className="absolute inset-0 flex items-center justify-center"><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div></div>
+                                                            )}
+                                                            <a href={photo.url} target="_blank" className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors"></a>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {isStepLocked && <div className="text-center text-xs text-slate-600 py-2">等待前置步驟完成</div>}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    {/* Progress Bar */}
+                    <div className="fixed bottom-0 left-0 right-0 h-1.5 bg-slate-900 z-50">
+                        <div className="h-full bg-blue-500 shadow-[0_0_10px_#3b82f6] transition-all duration-700 ease-out" style={{ width: `${progress}%` }}></div>
+                    </div>
+                </div>
+            );
+        }
+
+        // ================= 詳細資訊與掃碼組件 =================
+        function DetailSection({ stepId, details, order, onFreezerMatch }) {
+            const [expanded, setExpanded] = useState(false);
+            const [scannerActive, setScannerActive] = useState(false);
+            const [scanMsg, setScanMsg] = useState('');
+            const [isMatched, setIsMatched] = useState(false);
+
+            // 檢查是否已確認過 (初始化)
+            useEffect(() => {
+                if (stepId === 'fd_prep') {
+                    const plan = details.freezer_plan || "";
+                    const actual = details['凍乾機_1'] || "";
+                    if (plan && actual && plan === actual) setIsMatched(true);
+                }
+            }, [details, stepId]);
+
+            const startScanner = () => {
+                setScannerActive(true);
+                setScanMsg('啟動相機中...');
+                setTimeout(() => {
+                    const html5QrCode = new Html5Qrcode("reader");
+                    html5QrCode.start(
+                        { facingMode: "environment" },
+                        { fps: 10, qrbox: 250 },
+                        (decodedText) => {
+                            html5QrCode.stop().then(() => setScannerActive(false));
+                            handleCheck(decodedText);
+                        },
+                        (err) => { }
+                    ).catch(err => {
+                        setScannerActive(false);
+                        alert("無法啟動相機: " + err);
+                    });
+                }, 100);
+            };
+
+            // 修改 index.html 中的 handleCheck 函式
+            const handleCheck = async (text) => {
+                const scanned = text.trim();
+                const expected = (details.freezer_plan || "").trim();
+
+                console.log(`比對除錯: 掃描=[${scanned}], 預計=[${expected}]`);
+
+                // === [新增] 智慧比對邏輯 ===
+                const clean = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, ""); // 移除空格符號轉小寫
+                const scannedClean = clean(scanned);
+                const expectedClean = clean(expected);
+
+                // 1. 完全相等 (忽略空格大小寫) -> Freezer 08 == Freezer08
+                // 2. 掃描內容包含預計內容 -> Site: Freezer 08 == Freezer 08
+                // 3. 預計內容包含掃描內容 -> Freezer 08 contains 08
+                let isMatch = (scannedClean === expectedClean) ||
+                    (scannedClean.includes(expectedClean)) ||
+                    (expectedClean.includes(scannedClean) && scannedClean.length >= 2); // 防止只掃到 "0" 就過
+
+                // 特殊規則：如果掃到的是純數字 (例如 "08" 或 "8")
+                if (/^\d+$/.test(scannedClean)) {
+                    // 取出預計機台中的數字部分 (Freezer 08 -> 08)
+                    const expectedNum = expectedClean.replace(/\D/g, '');
+                    // 比對數字 (轉成 Number 避免 "08" != "8")
+                    if (parseInt(scannedClean) === parseInt(expectedNum)) {
+                        isMatch = true;
+                    }
+                }
+
+                if (isMatch) {
+                    setScanMsg('✅ 比對成功，寫入中...');
+                    try {
+                        const res = await fetch(`${API_BASE}/api/mobile/update-freezer`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ work_order: order, freezer: expected }) // 寫入標準格式(預計值)
+                        });
+                        const data = await res.json();
+                        if (data.ok) {
+                            setIsMatched(true);
+                            if (onFreezerMatch) onFreezerMatch(true);
+                        } else { alert('寫入失敗: ' + data.error); }
+                    } catch (e) { alert('網路錯誤'); }
+                } else {
+                    // 顯示詳細錯誤，方便現場除錯
+                    alert(`❌ 比對失敗！\n您的掃描：${scanned}\n系統預計：${expected}\n\n(請確認 QR Code 是否正確)`);
+                    setScanMsg('❌ 比對失敗，請重試');
+                }
+            };
+
+            if (stepId === 'titration_prep') {
+                const items = [];
+                for (let i = 1; i <= 4; i++) {
+                    const lot = details[`Dispense_Lot_${i}`];
+                    if (lot) items.push({ lot, pump: details[`pump_${i}`] });
+                }
+                if (items.length === 0) return null;
+
+                return (
+                    <div className="mb-3 text-sm">
+                        <div onClick={() => setExpanded(!expanded)} className="flex items-center gap-1 text-amber-400 cursor-pointer text-xs mb-2 select-none hover:text-amber-300">
+                            <IconInfo /> {expanded ? '收起詳細資訊' : '顯示配藥/Pump資訊'}
+                        </div>
+                        {expanded && (
+                            <div className="bg-slate-950/50 p-2 rounded-lg border border-slate-800 space-y-1 animate-pulse-fast">
+                                {items.map((item, idx) => (
+                                    <div key={idx} className="flex justify-between border-b border-slate-800/50 pb-1 last:border-0 last:pb-0">
+                                        <span className="font-mono text-slate-300">{item.lot}</span>
+                                        <span className="font-mono text-blue-400 font-bold">{item.pump}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+
+            if (stepId === 'fd_prep') {
+                const plan = details.freezer_plan || "未指定";
+                return (
+                    <div className="mb-3 bg-slate-900/50 p-3 rounded-lg border border-slate-800">
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="text-xs text-slate-400">預計凍乾機</span>
+                            <span className={`font-mono font-bold text-lg ${isMatched ? 'text-green-400' : 'text-amber-400'}`}>{plan}</span>
+                        </div>
+                        {!isMatched ? (
+                            <div className="space-y-2">
+                                {scannerActive ? (
+                                    <div className="relative bg-black rounded-lg overflow-hidden border border-slate-600 h-64">
+                                        <div id="reader" className="w-full h-full"></div>
+                                        <button onClick={() => window.location.reload()} className="absolute top-2 right-2 bg-red-600/80 text-white px-2 py-1 text-xs rounded">關閉</button>
+                                    </div>
+                                ) : (
+                                    <button onClick={startScanner} className="w-full py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm text-white flex items-center justify-center gap-2 transition-colors">
+                                        <IconScan /> 掃描確認
+                                    </button>
+                                )}
+                                {scanMsg && <div className="text-center text-xs text-slate-400">{scanMsg}</div>}
+                            </div>
+                        ) : (
+                            <div className="text-center text-xs text-green-500 border-t border-slate-700 pt-2 mt-2">✅ 機台確認無誤</div>
+                        )}
+                    </div>
+                );
+            }
+            return null;
+        }
+
+        function LoginView({ onLogin }) {
+            const [val, setVal] = useState('');
+            return (
+                <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 p-6">
+                    <div className="w-full max-w-xs">
+                        <h1 className="text-3xl font-bold text-white mb-2 text-center tracking-tight">行動紀錄系統</h1>
+                        <p className="text-slate-500 text-sm mb-8 text-center">工廠數位化管理平台</p>
+                        <form onSubmit={(e) => { e.preventDefault(); if (val) onLogin(val.toUpperCase()); }} className="space-y-4">
+                            <input type="text" placeholder="輸入工號 (例: OP1001)" value={val} onChange={e => setVal(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-4 text-center text-white text-lg focus:border-blue-500 outline-none transition-all placeholder:text-slate-600" autoFocus />
+                            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl active:scale-95 transition-all shadow-lg shadow-blue-900/20">登入</button>
+                        </form>
+                        <p className="text-center text-xs text-slate-700 mt-8">v3.0.0</p>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+
+</html>

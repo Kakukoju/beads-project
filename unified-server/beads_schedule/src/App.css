@@ -1,0 +1,52 @@
+#root {
+  /* 移除 max-width，讓內容在 iframe 中全屏顯示 */
+  width: 100%;
+  margin: 0;
+  padding: 2rem;
+  text-align: center;
+  background-color: transparent; /* 繼承 body 的深色背景 */
+  min-height: 100vh;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+
+.logo:hover {
+  filter: drop-shadow(0 0 2em #60a5faaa); /* 改為 blue-400 */
+}
+
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #22d3eeaa); /* 改為 cyan-400 */
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+  /* 添加深色卡片樣式，與主 Dashboard 一致 */
+  background-color: rgba(30, 41, 59, 0.5); /* slate-800/50 */
+  border: 1px solid rgba(51, 65, 85, 0.5); /* slate-700/50 */
+  border-radius: 0.75rem;
+  backdrop-filter: blur(12px);
+}
+
+.read-the-docs {
+  color: #94a3b8; /* 改為 slate-400，更適合深色背景 */
+}

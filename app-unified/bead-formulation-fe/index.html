@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>配藥紀錄建立平台</title>
+
+    <!-- 可選：favicon -->
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+
+    <!-- 建議：在這裡指定 API_BASE；上線時只改這裡即可 -->
+    <script>
+      window.ENV = {
+        // 改成你的 Flask 位置；若反代成 /api 也可改回 "/api"
+        API_BASE: "http://localhost:5000/api"
+      };
+    </script>
+    <!-- 若你習慣獨立檔案，也可用 <script src="/env.js"></script> -->
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- 入口 -->
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

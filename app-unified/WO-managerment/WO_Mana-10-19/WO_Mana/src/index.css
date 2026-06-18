@@ -1,0 +1,23 @@
+/* src/index.css */
+/* -------------------------------------
+   ✅ Tailwind v3 + shadcn/ui 標準設定
+-------------------------------------- */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ✅ shadcn 的動畫支援 */
+@layer utilities {
+  @import "tailwindcss-animate";
+}
+
+/* ✅ 全域底色與字型設定 */
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}

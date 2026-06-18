@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "skipLibCheck": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "types": ["node"]            // ★ 讓 TS 知道 Node 的型別（node:url、import.meta.url）
+  },
+  "include": ["vite.config.ts", "vitest.config.ts"]
+}

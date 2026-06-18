@@ -1,0 +1,11 @@
+{
+    "sqltools.useNodeRuntime": true,
+    "sqltools.connections": [
+        {
+            "previewLimit": 50,
+            "driver": "SQLite",
+            "database": "${workspaceFolder:beadsops}/data/P01_formualte_schedule.db",
+            "name": "P01_formualte"
+        }
+    ]
+}

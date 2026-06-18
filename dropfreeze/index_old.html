@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>滴定凍乾行動紀錄</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: { 
+                extend: { 
+                    colors: { 
+                        slate: { 950: '#020617', 900: '#0f172a', 800: '#1e293b' } 
+                    },
+                    animation: {
+                        'pulse-fast': 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    }
+                } 
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #020617; color: white; -webkit-tap-highlight-color: transparent; }
+        /* 隱藏檔案輸入框 */
+        input[type="file"] { display: none; }
+        /* 圖片載入動畫 */
+        .img-loading { animation: pulse 1.5s infinite; background-color: #334155; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // ================= 設定區 =================
+        // 請確認此網址是您最新的 Cloudflare Tunnel 網址
+        const API_BASE = "https://civilian-sealed-thumbnails-ment.trycloudflare.com"; 
+        
+        // 步驟定義
+        const STEPS = [
+            { id: 'receive', label: '收藥' },
+            { id: 'titration_prep', label: '滴定準備', hasDetail: true },
+            { id: 'titration_start', label: '滴定開始' },
+            { id: 'titration_end', label: '滴定結束' },
+            { id: 'fd_prep', label: '凍乾準備', hasDetail: true },
+            { id: 'fd_start', label: '凍乾開始' },
+            { id: 'fd_end', label: '凍乾結束' },
+        ];
+
+        // ================= 圖示組件 (SVG) =================
+        const IconCheck = () => <svg className="w-5 h-5 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6L9 17l-5-5"/></svg>;
+        const IconLock = () => <svg className="w-5 h-5 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
+        const IconCamera = () => <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>;
+        const IconUser = () => <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
+        const IconInfo = () => <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>;
+        const IconPlus = () => <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>;
+
+        // ================= 主應用程式 =================
+        function App() {
+            const [view, setView] = useState('login'); // login, select, record
+            const [user, setUser] = useState('');
+            const [orderList, setOrderList] = useState([]);
+            const [selectedOrder, setSelectedOrder] = useState('');
+            const [stepData, setStepData] = useState({}); 
+            const [fullDetails, setFullDetails] = useState({});
+            const [loading, setLoading] = useState(false);
+
+            // 初始化：檢查是否已登入
+            useEffect(() => {
+                const savedUser = localStorage.getItem('beads_user');
+                if (savedUser) {
+                    setUser(savedUser);
+                    fetchOrders();
+                }
+            }, []);
+
+            // 1. 獲取工單列表
+            const fetchOrders = async () => {
+                setLoading(true);
+                try {
+                    const res = await fetch(`${API_BASE}/api/mobile/work-orders`);
+                    const data = await res.json();
+                    if (data.ok) {
+                        setOrderList(data.orders);
+                        setView('select');
+                    } else {
+                        alert('無法載入工單: ' + data.error);
+                    }
+                } catch (e) { alert('網路連線錯誤 (Fetch Orders)'); }
+                setLoading(false);
+            };
+
+            // 2. 選擇工單 (含 5714 檢核 & 狀態載入)
+            const handleOrderSelect = async (orderId) => {
+                setLoading(true);
+                try {
+                    // (A) 檢查權限 (5714)
+                    const checkRes = await fetch(`${API_BASE}/api/mobile/check-access?work_order=${orderId}`);
+                    const checkData = await checkRes.json();
+                    
+                    if (!checkData.ok) { alert('檢核錯誤: ' + checkData.error); setLoading(false); return; }
+                    if (!checkData.allowed) { alert('⛔ ' + checkData.msg); setLoading(false); return; }
+
+                    // (B) 載入詳細狀態
+                    const res = await fetch(`${API_BASE}/api/mobile/status?work_order=${orderId}`);
+                    const data = await res.json();
+                    if (data.ok) {
+                        // 解析照片字串 (分號分隔)
+                        const parsedSteps = parsePhotoData(data.steps);
+                        setStepData(parsedSteps);
+                        setFullDetails(data.details || {});
+                        setSelectedOrder(orderId);
+                        setView('record');
+                    }
+                } catch (e) { alert('API 錯誤 (Select Order)'); }
+                setLoading(false);
+            };
+
+            // 輔助：解析後端回傳的照片字串 ("a.jpg;b.jpg") 為陣列
+            const parsePhotoData = (rawSteps) => {
+                const parsed = {};
+                if (!rawSteps) return {};
+                
+                Object.keys(rawSteps).forEach(key => {
+                    const step = rawSteps[key];
+                    const photoList = step.photoName 
+                        ? step.photoName.split(';').map(name => ({ url: `${API_BASE}/photos/${name}`, isTemp: false }))
+                        : [];
+                    
+                    parsed[key] = { ...step, photos: photoList };
+                });
+                return parsed;
+            };
+
+            // 3. 上傳照片
+            const handleUpload = async (stepId, file) => {
+                // 樂觀更新 (Optimistic UI): 先在畫面上顯示預覽圖
+                const previewUrl = URL.createObjectURL(file);
+                const nowStr = new Date().toTimeString().split(' ')[0];
+                
+                setStepData(prev => {
+                    const oldPhotos = prev[stepId]?.photos || [];
+                    return {
+                        ...prev,
+                        [stepId]: { 
+                            ...prev[stepId],
+                            timestamp: nowStr, 
+                            user: user, 
+                            photos: [...oldPhotos, { url: previewUrl, isTemp: true }], // 加入暫時圖片
+                            uploading: true 
+                        }
+                    };
+                });
+
+                const formData = new FormData();
+                formData.append('work_order', selectedOrder);
+                formData.append('step_id', stepId);
+                formData.append('user', user);
+                formData.append('photo', file);
+
+                try {
+                    const res = await fetch(`${API_BASE}/api/mobile/upload`, { method: 'POST', body: formData });
+                    const data = await res.json();
+                    if (data.ok) {
+                        // 上傳成功：使用後端回傳的完整照片字串重新解析
+                        const photoList = data.photoName.split(';').map(name => ({
+                            url: `${API_BASE}/photos/${name}`, 
+                            isTemp: false
+                        }));
+
+                        setStepData(prev => ({
+                            ...prev,
+                            [stepId]: { 
+                                ...prev[stepId], 
+                                timestamp: data.timestamp,
+                                photos: photoList,
+                                uploading: false 
+                            }
+                        }));
+                    } else {
+                        alert('上傳失敗: ' + (data.msg || '未知錯誤'));
+                        // 失敗時的回滾邏輯可在此實作
+                    }
+                } catch (e) { 
+                    alert('上傳發生網路錯誤'); 
+                }
+            };
+
+            // --- 視圖切換 ---
+            if (view === 'login') return <LoginView onLogin={(u) => { setUser(u); localStorage.setItem('beads_user', u); fetchOrders(); }} />;
+            
+            if (view === 'select') return (
+                <div className="min-h-screen p-4 bg-slate-950 text-white">
+                    <div className="flex justify-between items-center mb-6">
+                        <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent">今日工單</h1>
+                        <div className="text-right">
+                            <span className="text-xs text-slate-400 block">{user}</span>
+                            <button onClick={() => { localStorage.removeItem('beads_user'); setView('login'); }} className="text-xs text-blue-500">登出</button>
+                        </div>
+                    </div>
+                    {loading ? <div className="text-center text-slate-500 mt-20 animate-pulse">載入資料中...</div> : (
+                        <div className="space-y-3 pb-10">
+                            {orderList.length === 0 ? (
+                                <div className="text-center text-slate-600 py-10 border border-dashed border-slate-800 rounded-xl">
+                                    無排程資料
+                                </div>
+                            ) : (
+                                orderList.map(order => (
+                                    <button key={order} onClick={() => handleOrderSelect(order)}
+                                        className="w-full bg-slate-800 p-4 rounded-xl text-left font-mono text-lg border border-slate-700 active:bg-slate-700 active:scale-95 transition-all flex justify-between items-center shadow-lg">
+                                        <span className="text-slate-200">{order}</span>
+                                        <span className="text-slate-500">➜</span>
+                                    </button>
+                                ))
+                            )}
+                        </div>
+                    )}
+                    <button onClick={fetchOrders} className="fixed bottom-6 right-6 w-12 h-12 bg-blue-600 rounded-full shadow-2xl flex items-center justify-center text-white active:bg-blue-500">
+                        ↻
+                    </button>
+                </div>
+            );
+
+            if (view === 'record') return (
+                <RecordView 
+                    order={selectedOrder} 
+                    user={user} 
+                    steps={STEPS} 
+                    stepData={stepData} 
+                    fullDetails={fullDetails}
+                    onBack={() => setView('select')}
+                    onUpload={handleUpload}
+                />
+            );
+        }
+
+        // ================= 紀錄頁面 (核心) =================
+        function RecordView({ order, user, steps, stepData, fullDetails, onBack, onUpload }) {
+            const completedCount = Object.keys(stepData).length;
+            const progress = Math.min((completedCount / steps.length) * 100, 100);
+
+            return (
+                <div className="min-h-screen pb-20 bg-slate-950 text-white">
+                    {/* 頂部固定欄 */}
+                    <div className="sticky top-0 z-50 bg-slate-900/95 backdrop-blur border-b border-slate-800 px-4 py-3 flex items-center justify-between shadow-2xl">
+                        <button onClick={onBack} className="text-slate-400 text-2xl px-2 active:text-white">✕</button>
+                        <div className="text-center">
+                            <div className="text-[10px] text-slate-500 uppercase tracking-widest">WORK ORDER</div>
+                            <div className="font-mono font-bold text-lg text-slate-100">{order}</div>
+                        </div>
+                        <div className="w-8"></div>
+                    </div>
+
+                    {/* 垂直時間軸 */}
+                    <div className="p-5 space-y-6">
+                        {steps.map((step, index) => {
+                            const data = stepData[step.id];
+                            const isCompleted = !!data;
+                            const photoCount = data?.photos?.length || 0;
+                            
+                            // 鎖定邏輯：若上一步未完成，則鎖定 (第一步除外)
+                            const isLocked = index > 0 && !stepData[steps[index - 1].id];
+                            const isActive = !isCompleted && !isLocked;
+
+                            return (
+                                <div key={step.id} className={`relative pl-8 transition-opacity duration-300 ${isLocked ? 'opacity-40 grayscale' : 'opacity-100'}`}>
+                                    {/* 左側連接線 */}
+                                    {index !== steps.length - 1 && (
+                                        <div className={`absolute left-[11px] top-8 bottom-[-24px] w-0.5 transition-colors ${isCompleted ? 'bg-blue-500' : 'bg-slate-800'}`}></div>
+                                    )}
+                                    
+                                    {/* 狀態圓點 */}
+                                    <div className={`absolute left-0 top-1 w-6 h-6 rounded-full flex items-center justify-center border-2 z-10 bg-slate-950
+                                        ${isCompleted ? 'border-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]' : isActive ? 'border-amber-400 animate-pulse-fast' : 'border-slate-700'}`}>
+                                        {isCompleted ? <IconCheck /> : isLocked ? <IconLock /> : <div className="w-2 h-2 bg-amber-400 rounded-full"/>}
+                                    </div>
+
+                                    {/* 卡片本體 */}
+                                    <div className={`rounded-xl border p-4 transition-all duration-300
+                                        ${isActive ? 'bg-slate-800 border-amber-500/30 shadow-[0_0_20px_rgba(251,191,36,0.15)]' : 'bg-slate-900/30 border-slate-800'}`}>
+                                        
+                                        <div className="flex justify-between items-start mb-2">
+                                            <h3 className={`font-bold text-lg ${isActive ? 'text-white' : 'text-slate-400'}`}>{step.label}</h3>
+                                            {isCompleted && (
+                                                <div className="text-right">
+                                                    <div className="text-xs text-blue-400 font-mono tracking-tighter">{data.timestamp.split(' ')[1]}</div>
+                                                    <div className="text-[10px] text-slate-500 flex items-center justify-end gap-1"><IconUser/> {data.user}</div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* 資訊區塊 (確認清單) */}
+                                        {step.hasDetail && (
+                                            <DetailSection stepId={step.id} details={fullDetails} />
+                                        )}
+
+                                        {/* 拍照/顯示區塊 */}
+                                        <div className="mt-3">
+                                            {/* 按鈕：未鎖定時永遠顯示，允許補拍 */}
+                                            {!isLocked && (
+                                                <label className={`
+                                                    flex items-center justify-center gap-2 w-full py-3 rounded-lg font-bold cursor-pointer transition-transform active:scale-95 mb-3
+                                                    ${photoCount > 0 
+                                                        ? 'bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700' 
+                                                        : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 text-white shadow-lg shadow-blue-900/20'}
+                                                `}>
+                                                    <input type="file" accept="image/*" capture="environment" 
+                                                        onChange={(e) => { if(e.target.files?.[0]) onUpload(step.id, e.target.files[0]); }} />
+                                                    {photoCount > 0 ? <><IconPlus /> 新增照片</> : <><IconCamera /> 紀錄並拍照</>}
+                                                </label>
+                                            )}
+
+                                            {/* 照片牆 (Grid) */}
+                                            {photoCount > 0 && (
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    {data.photos.map((photo, pIdx) => (
+                                                        <div key={pIdx} className="relative aspect-square bg-black rounded-lg border border-slate-700 overflow-hidden group">
+                                                            <img src={photo.url} className={`w-full h-full object-cover transition-opacity ${photo.isTemp ? 'opacity-50' : 'opacity-100'}`} />
+                                                            {/* 載入中動畫 */}
+                                                            {photo.isTemp && (
+                                                                <div className="absolute inset-0 flex items-center justify-center">
+                                                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                                </div>
+                                                            )}
+                                                            {/* 點擊放大遮罩 (簡易版) */}
+                                                            <a href={photo.url} target="_blank" className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors"></a>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            
+                                            {isLocked && <div className="text-center text-xs text-slate-600 py-2">等待前置步驟完成</div>}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* 底部進度條 */}
+                    <div className="fixed bottom-0 left-0 right-0 h-1.5 bg-slate-900 z-50">
+                        <div className="h-full bg-blue-500 shadow-[0_0_10px_#3b82f6] transition-all duration-700 ease-out" style={{ width: `${progress}%` }}></div>
+                    </div>
+                </div>
+            );
+        }
+
+        // ================= 輔助組件 (詳細資訊) =================
+        function DetailSection({ stepId, details }) {
+            const [expanded, setExpanded] = useState(false);
+
+            if (stepId === 'titration_prep') {
+                const items = [];
+                for(let i=1; i<=4; i++) {
+                    const lot = details[`Dispense_Lot_${i}`];
+                    if(lot) items.push({ lot, pump: details[`pump_${i}`] });
+                }
+                if (items.length === 0) return null;
+
+                return (
+                    <div className="mb-3 text-sm">
+                        <div onClick={()=>setExpanded(!expanded)} className="flex items-center gap-1 text-amber-400 cursor-pointer text-xs mb-2 select-none hover:text-amber-300">
+                            <IconInfo /> {expanded ? '收起詳細資訊' : '顯示配藥/Pump資訊'}
+                        </div>
+                        {expanded && (
+                            <div className="bg-slate-950/50 p-2 rounded-lg border border-slate-800 space-y-1 animate-pulse-fast">
+                                {items.map((item, idx) => (
+                                    <div key={idx} className="flex justify-between border-b border-slate-800/50 pb-1 last:border-0 last:pb-0">
+                                        <span className="font-mono text-slate-300">{item.lot}</span>
+                                        <span className="font-mono text-blue-400 font-bold">{item.pump}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+            if (stepId === 'fd_prep') {
+                return (
+                    <div className="mb-3 bg-slate-950/50 p-2 rounded-lg border border-slate-800 flex justify-between items-center">
+                        <span className="text-xs text-slate-400">預計凍乾機</span>
+                        <span className="font-mono text-amber-400 font-bold text-lg">{details['凍乾機_1'] || '未指定'}</span>
+                    </div>
+                );
+            }
+            return null;
+        }
+
+        // ================= 登入頁面 =================
+        function LoginView({ onLogin }) {
+            const [val, setVal] = useState('');
+            return (
+                <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 p-6">
+                    <div className="w-full max-w-xs">
+                        <h1 className="text-3xl font-bold text-white mb-2 text-center tracking-tight">行動紀錄系統</h1>
+                        <p className="text-slate-500 text-sm mb-8 text-center">工廠數位化管理平台</p>
+                        
+                        <form onSubmit={(e)=>{e.preventDefault(); if(val) onLogin(val.toUpperCase());}} className="space-y-4">
+                            <input type="text" placeholder="輸入工號 (例: OP1001)" value={val} onChange={e=>setVal(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-4 text-center text-white text-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-600" autoFocus />
+                            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl active:scale-95 transition-all shadow-lg shadow-blue-900/20">
+                                登入
+                            </button>
+                        </form>
+                        <p className="text-center text-xs text-slate-700 mt-8">v2.5.0</p>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

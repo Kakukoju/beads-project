@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>滴定凍乾行動紀錄</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        slate: { 950: '#020617', 900: '#0f172a', 800: '#1e293b' }
+                    },
+                    animation: {
+                        'pulse-fast': 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'fade-in': 'fadeIn 0.3s ease-out',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0', transform: 'translateY(10px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #020617;
+            color: white;
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* 隱藏滾動條 */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // ================= 設定區 =================
+        // 請確認此網址是您最新的 Cloudflare Tunnel 網址
+        const API_BASE = "https://civilian-sealed-thumbnails-ment.trycloudflare.com";
+
+        const STEPS = [
+            { id: 'receive', label: '收藥' },
+            { id: 'titration_prep', label: '滴定準備', hasDetail: true },
+            { id: 'titration_start', label: '滴定開始' },
+            { id: 'titration_end', label: '滴定結束' },
+            { id: 'fd_prep', label: '凍乾準備', hasDetail: true },
+            { id: 'fd_start', label: '凍乾開始' },
+            { id: 'fd_end', label: '凍乾結束' },
+        ];
+
+        // ================= 圖示組件 =================
+        const IconCheck = () => <svg className="w-5 h-5 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6L9 17l-5-5" /></svg>;
+        const IconLock = () => <svg className="w-5 h-5 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>;
+        const IconCamera = () => <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>;
+        const IconUser = () => <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>;
+        const IconInfo = () => <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>;
+        const IconPlus = () => <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14" /><path d="M5 12h14" /></svg>;
+        const IconScan = () => <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 7V5a2 2 0 0 1 2-2h2" /><path d="M17 3h2a2 2 0 0 1 2 2v2" /><path d="M21 17v2a2 2 0 0 1-2 2h-2" /><path d="M7 21H5a2 2 0 0 1-2-2v-2" /></svg>;
+        const IconKeyboard = () => <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="M6 8h.001" /><path d="M10 8h.001" /><path d="M14 8h.001" /><path d="M18 8h.001" /><path d="M6 12h.001" /><path d="M10 12h.001" /><path d="M14 12h.001" /><path d="M18 12h.001" /><path d="M7 16h10" /></svg>;
+        const IconAlert = () => <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>;
+        const IconTrash = () => <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>;
+        const IconActivity = () => <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>;
+
+        // ================= 圖片壓縮工具 =================
+        const compressFile = async (file, { maxWidth = 1024, quality = 0.7 } = {}) => {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.src = event.target.result;
+                    img.onload = () => {
+                        let w = img.width, h = img.height;
+                        if (w > maxWidth) {
+                            h = Math.round(h * (maxWidth / w));
+                            w = maxWidth;
+                        }
+                        const canvas = document.createElement('canvas');
+                        canvas.width = w;
+                        canvas.height = h;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, w, h);
+                        canvas.toBlob((blob) => {
+                            if (!blob) return reject(new Error('壓縮失敗'));
+                            const newFile = new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() });
+                            resolve(newFile);
+                        }, 'image/jpeg', quality);
+                    };
+                    img.onerror = (err) => reject(err);
+                };
+                reader.onerror = (err) => reject(err);
+            });
+        };
+
+        // ================= 子頁面：登入視圖 (LoginView) =================
+        function LoginView({ onLogin }) {
+            const [loginMode, setLoginMode] = useState('scan'); 
+            const [val, setVal] = useState('');
+            const scannerRef = useRef(null);
+
+            useEffect(() => {
+                let html5QrCode;
+                if (loginMode === 'scan') {
+                    setTimeout(() => {
+                        html5QrCode = new Html5Qrcode("login-reader");
+                        scannerRef.current = html5QrCode;
+                        html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 },
+                            (decodedText) => { stopScanner().then(() => onLogin(decodedText.toUpperCase())); },
+                            (err) => { }
+                        ).catch(err => { setLoginMode('input'); });
+                    }, 100);
+                }
+                return () => stopScanner();
+            }, [loginMode]);
+
+            const stopScanner = async () => {
+                if (scannerRef.current && scannerRef.current.isScanning) {
+                    try { await scannerRef.current.stop(); } catch (e) { }
+                    try { await scannerRef.current.clear(); } catch (e) { }
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 p-6 text-center">
+                    <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">行動紀錄系統</h1>
+                    <p className="text-slate-500 text-sm mb-6">工廠數位化管理平台</p>
+                    <div className="flex bg-slate-900 p-1 rounded-lg mb-6 border border-slate-800">
+                        <button onClick={() => setLoginMode('scan')} className={`px-6 py-2 rounded-md text-sm font-bold transition-all ${loginMode === 'scan' ? 'bg-slate-700 text-white shadow' : 'text-slate-500'}`}><div className="flex items-center gap-2"><IconScan /> 掃描 QR</div></button>
+                        <button onClick={() => setLoginMode('input')} className={`px-6 py-2 rounded-md text-sm font-bold transition-all ${loginMode === 'input' ? 'bg-slate-700 text-white shadow' : 'text-slate-500'}`}><div className="flex items-center gap-2"><IconKeyboard /> 手動輸入</div></button>
+                    </div>
+                    {loginMode === 'scan' && (
+                        <div className="relative w-72 h-72 bg-black rounded-2xl overflow-hidden border-2 border-slate-700 shadow-2xl animate-in fade-in">
+                            <div id="login-reader" className="w-full h-full"></div>
+                            <div className="absolute inset-0 border-[40px] border-black/50 pointer-events-none"></div>
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <div className="w-48 h-48 border-2 border-blue-500/50 rounded-lg animate-pulse relative">
+                                    <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-blue-400"></div>
+                                    <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-blue-400"></div>
+                                    <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-blue-400"></div>
+                                    <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-blue-400"></div>
+                                </div>
+                            </div>
+                            <p className="absolute bottom-4 left-0 right-0 text-xs text-slate-400">請對準員工識別證 QR Code</p>
+                        </div>
+                    )}
+                    {loginMode === 'input' && (
+                        <form onSubmit={(e) => { e.preventDefault(); if (val) onLogin(val.toUpperCase()); }} className="w-full max-w-xs space-y-4 animate-in fade-in">
+                            <input type="text" placeholder="輸入工號 (例: OP1001)" value={val} onChange={e => setVal(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-4 text-center text-white text-lg outline-none focus:border-blue-500 transition-all" autoFocus />
+                            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl active:scale-95 transition-all shadow-lg">登入</button>
+                        </form>
+                    )}
+                    <p className="text-center text-xs text-slate-700 mt-8">v3.8.0 (UI Fix)</p>
+                </div>
+            );
+        }
+
+        // ================= 子頁面：異常回報視圖 (AbnormalView) =================
+        function AbnormalView({ onBack, user }) {
+            const [station, setStation] = useState("滴定");
+            const [machineId, setMachineId] = useState("");
+            const [description, setDescription] = useState("");
+            const [photos, setPhotos] = useState([]);
+            const [isSubmitting, setIsSubmitting] = useState(false);
+            const [suggestions, setSuggestions] = useState([]);
+            
+            // 1. 建立 Ref 來控制相機輸入框
+            const fileInputRef = useRef(null);
+
+            const DEFAULT_SUGGESTIONS = ["交藥延遲", "管路阻塞", "預冷溫度為達到", "真空度異常", "滴定體積不穩定", "機台無法啟動", "異常噪音", "操作介面故障"];
+
+            useEffect(() => {
+                const fetchTopIssues = async () => {
+                    try {
+                        const res = await fetch(`${API_BASE}/api/abnormal_top5?station=${encodeURIComponent(station)}`);
+                        const data = await res.json();
+                        if (data.ok && data.issues.length > 0) setSuggestions(data.issues);
+                        else setSuggestions(DEFAULT_SUGGESTIONS);
+                    } catch (err) { setSuggestions(DEFAULT_SUGGESTIONS); }
+                };
+                fetchTopIssues();
+            }, [station]);
+
+            const handlePhotoSelect = async (e) => {
+                if (e.target.files) {
+                    const newPhotos = [];
+                    for (let i = 0; i < e.target.files.length; i++) {
+                        const file = e.target.files[i];
+                        try {
+                            const compressed = await compressFile(file);
+                            newPhotos.push({ file: compressed, url: URL.createObjectURL(compressed) });
+                        } catch(err) { console.error("壓縮失敗", err); }
+                    }
+                    setPhotos(prev => [...prev, ...newPhotos]);
+                    
+                    // 重置 input value，確保下次選同一張圖也能觸發 onChange
+                    e.target.value = '';
+                }
+            };
+
+            const removePhoto = (index) => {
+                setPhotos(prev => prev.filter((_, i) => i !== index));
+            };
+
+            const handleSubmit = async () => {
+                if (!description || !machineId) {
+                    alert("請填寫機台編號與描述");
+                    return;
+                }
+                setIsSubmitting(true);
+                
+                try {
+                    // 1. 建立 FormData 物件 (這是上傳照片的關鍵)
+                    const formData = new FormData();
+                    formData.append('station', station);
+                    formData.append('machine_id', machineId);
+                    formData.append('description', description);
+                    formData.append('user', user);
+                    formData.append('created_at', new Date().toISOString());
+                    
+                    // 2. 將照片加入 formData
+                    photos.forEach((p) => {
+                        formData.append('photos', p.file); 
+                    });
+
+                    // 3. 發送請求
+                    const res = await fetch(`${API_BASE}/api/abnormal_record`, {
+                        method: 'POST',
+                        // ❌ 錯誤寫法 (請確認這一行已經被刪除): 
+                        // headers: { 'Content-Type': 'application/json' },
+                        
+                        // ✅ 正確寫法: 只要放 body: formData，瀏覽器會自動處理 Header
+                        body: formData
+                    });
+
+                    const result = await res.json();
+                    if (result.ok) {
+                        alert("異常紀錄已送出！");
+                        onBack();
+                    } else {
+                        alert(`上傳失敗: ${result.error}`);
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert("網路錯誤: " + err.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-slate-950 pb-20 animate-fade-in">
+                    <div className="sticky top-0 z-50 bg-red-900/90 backdrop-blur border-b border-red-800 p-4 shadow-lg flex items-center gap-3">
+                        <button onClick={onBack} className="text-red-200 text-xl px-2">✕</button>
+                        <h1 className="text-lg font-bold text-white flex items-center gap-2"><IconAlert /> 異常事件回報</h1>
+                    </div>
+                    <div className="p-5 space-y-6">
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs text-slate-400 mb-1">發生站點</label>
+                                <select value={station} onChange={e => setStation(e.target.value)} className="w-full bg-slate-900 border border-slate-700 p-3 rounded-xl text-white outline-none focus:border-red-500 transition-colors">
+                                    <option value="收藥">收藥</option>
+                                    <option value="滴定">滴定</option>
+                                    <option value="凍乾">凍乾</option>
+                                    <option value="分藥">分藥</option>
+                                    <option value="入庫">入庫</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs text-slate-400 mb-1">機台編號</label>
+                                <input type="text" value={machineId} onChange={e => setMachineId(e.target.value)} placeholder="例: M-01" className="w-full bg-slate-900 border border-slate-700 p-3 rounded-xl text-white outline-none focus:border-red-500 transition-colors" />
+                            </div>
+                            <div>
+                                <label className="block text-xs text-slate-400 mb-1">異常描述</label>
+                                <textarea rows="4" value={description} onChange={e => setDescription(e.target.value)} placeholder="請描述異常狀況..." className="w-full bg-slate-900 border border-slate-700 p-3 rounded-xl text-white outline-none focus:border-red-500 transition-colors" />
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                    {suggestions.map((s, i) => <button key={i} onClick={() => setDescription(s)} className="px-3 py-1 bg-slate-800 rounded-full text-xs text-slate-300 border border-slate-700 active:bg-red-900 transition-colors">{s}</button>)}
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-xs text-slate-400 mb-2">現場照片 ({photos.length})</label>
+                            <div className="grid grid-cols-4 gap-2">
+                                {photos.map((p, idx) => (
+                                    <div key={idx} className="relative aspect-square bg-black rounded-lg overflow-hidden border border-slate-700 group">
+                                        <img src={p.url} className="w-full h-full object-cover" />
+                                        <button onClick={() => removePhoto(idx)} className="absolute top-0 right-0 bg-red-600/80 text-white p-1 rounded-bl-lg shadow-sm"><IconTrash /></button>
+                                    </div>
+                                ))}
+                                
+                                {/* 修正：改用 div + onClick + ref 觸發 input
+                                    這能解決 display:none 在某些手機無法被 label 觸發的問題 
+                                */}
+                                <div 
+                                    onClick={() => fileInputRef.current.click()}
+                                    className="aspect-square bg-slate-800 border border-slate-700 border-dashed rounded-lg flex flex-col items-center justify-center text-slate-500 cursor-pointer active:bg-slate-700 transition-colors hover:text-white"
+                                >
+                                    <IconCamera />
+                                    <span className="text-xs mt-1">新增</span>
+                                    {/* 隱藏的 input，透過 ref 觸發 */}
+                                    <input 
+                                        ref={fileInputRef}
+                                        type="file" 
+                                        multiple 
+                                        accept="image/*" 
+                                        capture="environment" 
+                                        onChange={handlePhotoSelect} 
+                                        className="hidden" 
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                        <button onClick={handleSubmit} disabled={isSubmitting} className="w-full py-4 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl shadow-lg shadow-red-900/30 flex justify-center items-center gap-2 disabled:opacity-50 transition-all active:scale-95">
+                            {isSubmitting ? "傳送中..." : "提交異常紀錄"}
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        // ================= 子頁面：首頁選單 (HomeView) =================
+        function HomeView({ onSelectMode, user, onLogout }) {
+            const getDateRangeString = () => {
+                const today = new Date();
+                const dayBefore = new Date(today);
+                dayBefore.setDate(dayBefore.getDate() - 2); 
+                const fmt = (d) => `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+                return `${fmt(dayBefore)} ~ ${fmt(today)} 生產工單`;
+            };
+
+            return (
+                <div className="min-h-screen bg-slate-950 p-6 flex flex-col justify-center animate-fade-in">
+                    <div className="text-center mb-10">
+                        <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent mb-2">Beads Ops Mobile</h1>
+                        <p className="text-slate-400 text-sm font-mono">{getDateRangeString()}</p>
+                    </div>
+                    <div className="max-w-sm mx-auto w-full space-y-4">
+                        <button onClick={() => onSelectMode('production')} className="w-full group relative overflow-hidden bg-slate-900 border border-slate-800 p-6 rounded-2xl text-left shadow-lg hover:border-blue-500 transition-all active:scale-95 flex items-center gap-4">
+                            <div className="p-4 bg-blue-500/20 rounded-xl text-blue-400 group-hover:scale-110 transition-transform"><IconActivity /></div>
+                            <div><h2 className="text-xl font-bold text-slate-100 group-hover:text-blue-400 transition-colors">生產流程紀錄</h2><p className="text-slate-400 text-xs mt-1">滴定、凍乾步驟打卡</p></div>
+                        </button>
+                        <button onClick={() => onSelectMode('abnormal')} className="w-full group relative overflow-hidden bg-slate-900 border border-slate-800 p-6 rounded-2xl text-left shadow-lg hover:border-red-500 transition-all active:scale-95 flex items-center gap-4">
+                            <div className="p-4 bg-red-500/20 rounded-xl text-red-400 group-hover:scale-110 transition-transform"><IconAlert /></div>
+                            <div><h2 className="text-xl font-bold text-slate-100 group-hover:text-red-400 transition-colors">異常事件回報</h2><p className="text-slate-400 text-xs mt-1">機台故障、管路阻塞</p></div>
+                        </button>
+                    </div>
+                    <div className="mt-12 text-center">
+                        <div className="text-slate-400 text-sm mb-4">目前使用者: <span className="text-white font-mono">{user}</span></div>
+                        <button onClick={onLogout} className="text-xs text-blue-500 hover:text-blue-400 underline">登出系統</button>
+                    </div>
+                </div>
+            );
+        }
+
+        // ================= 生產紀錄詳細 (RecordView & DetailSection) =================
+        function DetailSection({ stepId, details, order, onFreezerMatch }) {
+            const [expanded, setExpanded] = useState(false);
+            const [scannerActive, setScannerActive] = useState(false);
+            const [isMatched, setIsMatched] = useState(false);
+
+            useEffect(() => {
+                if (stepId === 'fd_prep') {
+                    const plan = details.freezer_plan || "";
+                    const actual = details['凍乾機_1'] || "";
+                    if (plan && actual && plan === actual) setIsMatched(true);
+                }
+            }, [details, stepId]);
+
+            const startScanner = () => {
+                setScannerActive(true);
+                setTimeout(() => {
+                    const html5QrCode = new Html5Qrcode("reader");
+                    html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 },
+                        (decodedText) => { html5QrCode.stop().then(() => setScannerActive(false)); handleCheck(decodedText); },
+                        (err) => { }
+                    ).catch(err => { setScannerActive(false); alert("相機啟動失敗"); });
+                }, 100);
+            };
+
+            const handleCheck = async (text) => {
+                const scanned = text.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+                const expected = (details.freezer_plan || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+                let isMatch = scanned === expected || scanned.includes(expected) || (expected.includes(scanned) && scanned.length >= 2);
+                if (/^\d+$/.test(scanned)) { if (parseInt(scanned) === parseInt(expected.replace(/\D/g, ''))) isMatch = true; }
+
+                if (isMatch) {
+                    try {
+                        const res = await fetch(`${API_BASE}/api/mobile/update-freezer`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ work_order: order, freezer: details.freezer_plan }) });
+                        if ((await res.json()).ok) { setIsMatched(true); if (onFreezerMatch) onFreezerMatch(true); }
+                    } catch (e) { alert('網路錯誤'); }
+                } else { alert('比對失敗'); }
+            };
+
+            if (stepId === 'titration_prep') {
+                const items = [];
+                for (let i = 1; i <= 4; i++) { const lot = details[`Dispense_Lot_${i}`]; if (lot) items.push({ lot, pump: details[`pump_${i}`] }); }
+                if (items.length === 0) return null;
+                return (
+                    <div className="mb-3 text-sm">
+                        <div onClick={() => setExpanded(!expanded)} className="flex items-center gap-1 text-amber-400 cursor-pointer text-xs mb-2 select-none"><IconInfo /> {expanded ? '收起資訊' : '顯示配藥/Pump資訊'}</div>
+                        {expanded && <div className="bg-slate-950/50 p-2 rounded-lg border border-slate-800 space-y-1">{items.map((item, idx) => <div key={idx} className="flex justify-between border-b border-slate-800/50 pb-1 last:border-0"><span className="font-mono text-slate-300">{item.lot}</span><span className="font-mono text-blue-400 font-bold">{item.pump}</span></div>)}</div>}
+                    </div>
+                );
+            }
+            if (stepId === 'fd_prep') {
+                const plan = details.freezer_plan || "未指定";
+                return (
+                    <div className="mb-3 bg-slate-900/50 p-3 rounded-lg border border-slate-800">
+                        <div className="flex justify-between items-center mb-2"><span className="text-xs text-slate-400">預計凍乾機</span><span className={`font-mono font-bold text-lg ${isMatched ? 'text-green-400' : 'text-amber-400'}`}>{plan}</span></div>
+                        {!isMatched && (
+                            <div className="space-y-2">
+                                {scannerActive ? <div className="relative bg-black rounded-lg h-64 border border-slate-600"><div id="reader" className="w-full h-full"></div><button onClick={() => window.location.reload()} className="absolute top-2 right-2 bg-red-600 text-white px-2 text-xs rounded">✕</button></div> : 
+                                <button onClick={startScanner} className="w-full py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm text-white flex items-center justify-center gap-2"><IconScan /> 掃描確認</button>}
+                            </div>
+                        )}
+                        {isMatched && <div className="text-center text-xs text-green-500 border-t border-slate-700 pt-2 mt-2">✅ 機台確認無誤</div>}
+                    </div>
+                );
+            }
+            return null;
+        }
+
+        function RecordView({ order, user, steps, stepData, fullDetails, onBack, onUpload }) {
+            const [freezeLocked, setFreezeLocked] = useState(true);
+            useEffect(() => {
+                const plan = fullDetails.freezer_plan || "";
+                const actual = fullDetails['凍乾機_1'] || "";
+                if ((plan && actual && plan === actual) || (actual && !plan)) setFreezeLocked(false);
+            }, [fullDetails]);
+            const completedCount = Object.keys(stepData).length;
+            const progress = Math.min((completedCount / steps.length) * 100, 100);
+
+            return (
+                <div className="min-h-screen pb-20 bg-slate-950 text-white">
+                    <div className="sticky top-0 z-50 bg-slate-900/95 backdrop-blur border-b border-slate-800 px-4 py-3 flex items-center justify-between shadow-2xl">
+                        <button onClick={onBack} className="text-slate-400 text-2xl px-2 active:text-white">✕</button>
+                        <div className="text-center">
+                            <div className="text-[10px] text-slate-500 uppercase tracking-widest">WORK ORDER</div>
+                            <div className="font-mono font-bold text-lg text-slate-100">{order}</div>
+                        </div>
+                        <div className="w-8"></div>
+                    </div>
+                    <div className="p-5 space-y-6">
+                        {steps.map((step, index) => {
+                            const data = stepData[step.id];
+                            const isCompleted = !!data;
+                            const photoCount = data?.photos?.length || 0;
+                            const prevStepDone = index === 0 || !!stepData[steps[index - 1].id];
+                            const isStepLocked = !prevStepDone;
+                            const isFreezeStep = step.id === 'fd_prep';
+                            const isFreezeActionLocked = isFreezeStep && freezeLocked && !isCompleted;
+                            const isBtnDisabled = isStepLocked || isFreezeActionLocked;
+                            const isActive = !isCompleted && !isStepLocked;
+
+                            return (
+                                <div key={step.id} className={`relative pl-8 transition-opacity duration-300 ${isStepLocked ? 'opacity-40 grayscale' : 'opacity-100'}`}>
+                                    {index !== steps.length - 1 && <div className={`absolute left-[11px] top-8 bottom-[-24px] w-0.5 transition-colors ${isCompleted ? 'bg-blue-500' : 'bg-slate-800'}`}></div>}
+                                    <div className={`absolute left-0 top-1 w-6 h-6 rounded-full flex items-center justify-center border-2 z-10 bg-slate-950 ${isCompleted ? 'border-blue-500' : isActive ? 'border-amber-400 animate-pulse-fast' : 'border-slate-700'}`}>
+                                        {isCompleted ? <IconCheck /> : isStepLocked ? <IconLock /> : <div className="w-2 h-2 bg-amber-400 rounded-full" />}
+                                    </div>
+                                    <div className={`rounded-xl border p-4 transition-all duration-300 ${isActive ? 'bg-slate-800 border-amber-500/30' : 'bg-slate-900/30 border-slate-800'}`}>
+                                        <div className="flex justify-between items-start mb-2">
+                                            <h3 className={`font-bold text-lg ${isActive ? 'text-white' : 'text-slate-400'}`}>{step.label}</h3>
+                                            {isCompleted && <div className="text-right"><div className="text-xs text-blue-400 font-mono">{data.timestamp.split(' ')[1]}</div><div className="text-[10px] text-slate-500 flex justify-end gap-1"><IconUser /> {data.user}</div></div>}
+                                        </div>
+                                        {step.hasDetail && <DetailSection stepId={step.id} details={fullDetails} order={order} onFreezerMatch={(matched) => setFreezeLocked(!matched)} />}
+                                        <div className="mt-3">
+                                            {!isStepLocked && (
+                                                <div className="space-y-3">
+                                                    {/* 新增照片按鈕 - 修正為大按鈕且 input hidden */}
+                                                    <label className={`w-full py-3 rounded-lg flex items-center justify-center gap-2 font-bold cursor-pointer transition-all active:scale-95 ${isBtnDisabled ? 'bg-slate-800 text-slate-600 border border-slate-700 cursor-not-allowed' : 'bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-200'}`}>
+                                                        <input type="file" accept="image/*" capture="environment" disabled={isBtnDisabled} className="hidden" onChange={(e) => { if (e.target.files?.[0]) onUpload(step.id, e.target.files[0]); }} />
+                                                        {isFreezeActionLocked ? <><IconScan /> 請先掃描確認機台</> : <><IconPlus /> {photoCount > 0 ? "新增照片" : "紀錄並拍照"}</>}
+                                                    </label>
+
+                                                    {/* 照片 Grid */}
+                                                    {photoCount > 0 && (
+                                                        <div className="grid grid-cols-3 gap-2">
+                                                            {data.photos.map((photo, pIdx) => (
+                                                                <div key={pIdx} className="relative aspect-square bg-black rounded-lg border border-slate-700 overflow-hidden group">
+                                                                    <img src={photo.url} className={`w-full h-full object-cover ${photo.isTemp ? 'opacity-50' : ''}`} />
+                                                                    {photo.isTemp && <div className="absolute inset-0 flex items-center justify-center"><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div></div>}
+                                                                    <a href={photo.url} target="_blank" className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors"></a>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {isStepLocked && <div className="text-center text-xs text-slate-600 py-2">等待前置步驟完成</div>}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <div className="fixed bottom-0 left-0 right-0 h-1.5 bg-slate-900 z-50"><div className="h-full bg-blue-500 transition-all duration-700 ease-out" style={{ width: `${progress}%` }}></div></div>
+                </div>
+             );
+        }
+
+        // ================= 主應用程式 (App) =================
+        function App() {
+            const [view, setView] = useState('login'); 
+            const [user, setUser] = useState('');
+            const [orderList, setOrderList] = useState([]);
+            const [selectedOrder, setSelectedOrder] = useState('');
+            const [stepData, setStepData] = useState({});
+            const [fullDetails, setFullDetails] = useState({});
+            const [loading, setLoading] = useState(false);
+
+            useEffect(() => {
+                const savedUser = localStorage.getItem('beads_user');
+                if (savedUser) {
+                    setUser(savedUser);
+                    setView('home'); 
+                }
+            }, []);
+
+            const fetchOrders = async () => {
+                setLoading(true);
+                try {
+                    const res = await fetch(`${API_BASE}/api/mobile/work-orders`);
+                    const data = await res.json();
+                    if (data.ok) { setOrderList(data.orders); setView('select'); } 
+                    else { alert('無法載入工單: ' + data.error); }
+                } catch (e) { alert('網路連線錯誤'); }
+                setLoading(false);
+            };
+
+            const handleOrderSelect = async (orderId) => {
+                setLoading(true);
+                try {
+                    const checkRes = await fetch(`${API_BASE}/api/mobile/check-access?work_order=${orderId}`);
+                    const checkData = await checkRes.json();
+                    if (!checkData.ok) { alert('檢核錯誤: ' + checkData.error); setLoading(false); return; }
+                    if (!checkData.allowed) { alert('⛔ ' + checkData.msg); setLoading(false); return; }
+
+                    const res = await fetch(`${API_BASE}/api/mobile/status?work_order=${orderId}`);
+                    const data = await res.json();
+                    if (data.ok) {
+                        const parsedSteps = parsePhotoData(data.steps);
+                        setStepData(parsedSteps);
+                        setFullDetails(data.details || {});
+                        setSelectedOrder(orderId);
+                        setView('record');
+                    }
+                } catch (e) { alert('API 錯誤'); }
+                setLoading(false);
+            };
+
+            const parsePhotoData = (rawSteps) => {
+                const parsed = {};
+                if (!rawSteps) return {};
+                Object.keys(rawSteps).forEach(key => {
+                    const step = rawSteps[key];
+                    const photoList = step.photoName ? step.photoName.split(';').map(name => ({ url: `${API_BASE}/photos/${name}`, isTemp: false })) : [];
+                    parsed[key] = { ...step, photos: photoList };
+                });
+                return parsed;
+            };
+
+            const handleUpload = async (stepId, file) => {
+                const previewUrl = URL.createObjectURL(file);
+                const nowStr = new Date().toTimeString().split(' ')[0];
+                setStepData(prev => {
+                    const oldPhotos = prev[stepId]?.photos || [];
+                    return { ...prev, [stepId]: { ...prev[stepId], timestamp: nowStr, user: user, photos: [...oldPhotos, { url: previewUrl, isTemp: true }], uploading: true } };
+                });
+                try {
+                    const compressedFile = await compressFile(file, { maxWidth: 1280, quality: 0.7 });
+                    const formData = new FormData();
+                    formData.append('work_order', selectedOrder);
+                    formData.append('step_id', stepId);
+                    formData.append('user', user);
+                    formData.append('photo', compressedFile);
+                    const res = await fetch(`${API_BASE}/api/mobile/upload`, { method: 'POST', body: formData });
+                    const data = await res.json();
+                    if (data.ok) {
+                        const photoList = data.photoName.split(';').map(name => ({ url: `${API_BASE}/photos/${name}`, isTemp: false }));
+                        setStepData(prev => ({ ...prev, [stepId]: { ...prev[stepId], timestamp: data.timestamp, photos: photoList, uploading: false } }));
+                    } else { alert('上傳失敗: ' + (data.msg || data.error)); }
+                } catch (e) { alert('上傳發生錯誤'); }
+            };
+
+            if (view === 'login') return <LoginView onLogin={(u) => { setUser(u); localStorage.setItem('beads_user', u); setView('home'); }} />;
+            if (view === 'home') return <HomeView user={user} onSelectMode={(mode) => { if(mode === 'production') fetchOrders(); if(mode === 'abnormal') setView('abnormal'); }} onLogout={() => { localStorage.removeItem('beads_user'); setView('login'); }} />;
+            if (view === 'abnormal') return <AbnormalView user={user} onBack={() => setView('home')} />;
+            if (view === 'select') return (
+                <div className="min-h-screen p-4 bg-slate-950 text-white">
+                    <div className="flex justify-between items-center mb-6">
+                        <button onClick={() => setView('home')} className="text-slate-400 text-sm">🡠 回首頁</button>
+                        <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent">Bead's 生產工單</h1>
+                    </div>
+                    {loading ? <div className="text-center text-slate-500 mt-20 animate-pulse">載入中...</div> : (
+                        <div className="space-y-3 pb-10">
+                            {orderList.length === 0 ? <div className="text-center text-slate-600 py-10 border border-dashed border-slate-800 rounded-xl">無排程資料</div> : (
+                                orderList.map((item) => (
+                                    <button key={item.work_order} onClick={() => handleOrderSelect(item.work_order)} className="w-full bg-slate-800 p-4 rounded-xl text-left border border-slate-700 active:bg-slate-700 active:scale-95 transition-all flex justify-between items-center shadow-lg">
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] text-slate-500 mb-1">{item.date?.split(' ')[0]}</span>
+                                            <span className="text-slate-200 font-mono text-lg font-bold">{item.work_order}</span>
+                                            <div className="flex flex-wrap items-center gap-2 mt-1">
+                                                {item.marker && <span className="text-amber-500 text-sm font-bold">{item.marker}</span>}
+                                                {(item.pump_info || item.time_info) && (
+                                                    <span className="text-xs bg-slate-700 px-2 py-0.5 rounded text-blue-300 font-mono border border-slate-600">
+                                                        {item.pump_info} {item.time_info}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <span className="text-slate-500 text-xl">➜</span>
+                                    </button>
+                                ))
+                            )}
+                        </div>
+                    )}
+                    <button onClick={fetchOrders} className="fixed bottom-6 right-6 w-12 h-12 bg-blue-600 rounded-full shadow-2xl flex items-center justify-center text-white active:bg-blue-500">↻</button>
+                </div>
+            );
+            if (view === 'record') return <RecordView order={selectedOrder} user={user} steps={STEPS} stepData={stepData} fullDetails={fullDetails} onBack={() => setView('select')} onUpload={handleUpload} />;
+            
+            return null;
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+'=============================================================
+' ThisWorkbook 事件 - 貼到 VBE 的 ThisWorkbook 物件中
+'=============================================================
+' 存檔時自動同步到 EC2，不影響存檔流程
+'=============================================================
+
+Private Sub Workbook_BeforeSave(ByVal SaveAsUI As Boolean, Cancel As Boolean)
+    ' 非同步上傳：先存檔，再背景同步
+    ' 用 OnTime 延遲 1 秒執行，避免卡住存檔動作
+    Application.OnTime Now + TimeValue("00:00:01"), "SyncSilent"
+End Sub

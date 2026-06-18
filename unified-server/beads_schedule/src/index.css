@@ -1,0 +1,104 @@
+:root {
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  /* 強制深色主題，與主 Dashboard 一致 */
+  color-scheme: dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #020617; /* slate-950 */
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  font-weight: 500;
+  color: #60a5fa; /* blue-400 */
+  text-decoration: inherit;
+}
+a:hover {
+  color: #3b82f6; /* blue-500 */
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: #020617; /* slate-950 */
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+  color: rgba(255, 255, 255, 0.87);
+}
+
+h2, h3, h4, h5, h6 {
+  color: rgba(255, 255, 255, 0.87);
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid #475569; /* slate-600 */
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #334155; /* slate-700 */
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.25s;
+}
+
+button:hover {
+  border-color: #3b82f6; /* blue-500 */
+  background-color: #3b82f6;
+}
+
+button:focus,
+button:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* 移除淺色主題媒體查詢，強制使用深色 */
+/* 如果需要支援淺色模式，可以改用 class 控制而非媒體查詢 */
+
+/* 額外樣式：統一輸入框、卡片等元素 */
+input, 
+select, 
+textarea {
+  background-color: #334155; /* slate-700 */
+  color: #ffffff;
+  border: 1px solid #475569; /* slate-600 */
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+  border-color: #3b82f6;
+}
+
+/* 卡片樣式 */
+.card {
+  background-color: rgba(30, 41, 59, 0.5); /* slate-800/50 */
+  border: 1px solid rgba(51, 65, 85, 0.5); /* slate-700/50 */
+  border-radius: 0.75rem;
+  backdrop-filter: blur(12px);
+}
+
+/* 確保所有容器都是深色背景 */
+#root {
+  background-color: #020617;
+  min-height: 100vh;
+  width: 100%;
+}
