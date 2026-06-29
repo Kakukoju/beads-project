@@ -1254,7 +1254,11 @@ def api_get_workorder():
             first = result_rows[0]
 
             # DropletSchedule 和 pump 邏輯
-            dispose_lots, maker_name, product_quantity = [], None, 0
+            maker_name = None
+            titration_lots = []      # 滴定日記錄（有 Pump/Lyophilizer）
+            formulation_lots = []    # 配藥日記錄（無 Pump/Lyophilizer）
+            titration_qty = 0
+            formulation_qty = 0
             formulation_date = None
             cur = conn.execute(
                 "SELECT Lot, Pump, Lyophilizer, Marker, Quantity, Date, Remark FROM DropletSchedule WHERE TRIM(WorkOrder) LIKE ?",
@@ -1268,26 +1272,32 @@ def api_get_workorder():
                 lot_val  = (r.get("Lot") or "").strip()
                 remark   = (r.get("Remark") or "").strip()
                 if pump_val or lyo_val:
-                    # 滴定日：有 Pump/Lyophilizer 的才計入製令數量和 disposeLots
-                    product_quantity += safe_int(r.get("Quantity"))
-                    dispose_lots.append({
+                    # 滴定日：有 Pump/Lyophilizer
+                    titration_qty += safe_int(r.get("Quantity"))
+                    titration_lots.append({
                         "id": lot_val,
                         "port": pump_val,
                         "freezeDry": lyo_val,
                         "pump": None,
                     })
                 else:
-                    # 配藥日：Diluent 等無滴定/凍乾欄位的工單，數量仍來自排程表
-                    product_quantity += safe_int(r.get("Quantity"))
+                    # 配藥日
+                    formulation_qty += safe_int(r.get("Quantity"))
                     if not formulation_date:
                         formulation_date = r.get("Date")
-                    # 若 Lot 或 Remark 有批次資訊，仍建立 disposeLots 供標籤使用
                     if lot_val:
-                        dispose_lots.append({"id": lot_val, "port": "", "freezeDry": "", "pump": None})
+                        formulation_lots.append({"id": lot_val, "port": "", "freezeDry": "", "pump": None})
                     elif remark and "lot" in remark.lower():
                         lot_match = re.search(r"[Ll]ot\s*([\w/\-]+)", remark)
                         lot_id = lot_match.group(1) if lot_match else remark
-                        dispose_lots.append({"id": lot_id, "port": "", "freezeDry": "", "pump": None})
+                        formulation_lots.append({"id": lot_id, "port": "", "freezeDry": "", "pump": None})
+            # 優先使用滴定日；僅純配藥工單（無任何滴定日記錄）才 fallback 用配藥日
+            if titration_lots:
+                dispose_lots = titration_lots
+                product_quantity = titration_qty
+            else:
+                dispose_lots = formulation_lots
+                product_quantity = formulation_qty
 
             pump_ids = []
             if maker_name:

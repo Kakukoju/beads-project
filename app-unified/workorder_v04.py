@@ -87,20 +87,29 @@ def api_get_workorder():
             first = result_rows[0]
 
             # === DropletSchedule ===
-            dispose_lots, maker_name, product_quantity = [], None, 0
+            dispose_lots, maker_name = [], None
+            titration_qty = 0        # 滴定日數量（有 Pump/Lyophilizer）
+            formulation_qty = 0      # 配藥日數量（無 Pump/Lyophilizer）
             cur = conn.execute(
                 "SELECT Lot, Pump, Lyophilizer, Marker, Quantity FROM DropletSchedule WHERE WorkOrder = ?",
                 (work_order,),
             )
             for r in cur.fetchall():
                 maker_name = r["Marker"] or maker_name
-                product_quantity += safe_int(r["Quantity"])
+                pump_val = (r["Pump"] or "").strip()
+                lyo_val  = (r["Lyophilizer"] or "").strip()
+                if pump_val or lyo_val:
+                    titration_qty += safe_int(r["Quantity"])
+                else:
+                    formulation_qty += safe_int(r["Quantity"])
                 dispose_lots.append({
                     "id": r["Lot"],
                     "port": r["Pump"],
                     "freezeDry": r["Lyophilizer"],
                     "pump": None,
                 })
+            # 優先使用滴定日數量；僅純配藥工單（無任何滴定日記錄）才用配藥日數量
+            product_quantity = titration_qty if titration_qty > 0 else formulation_qty
 
             # === pump No. (維持原有方式) ===
             pump_ids = []

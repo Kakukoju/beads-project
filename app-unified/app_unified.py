@@ -960,8 +960,10 @@ def api_get_workorder():
                 return jsonify({"message": f"查無工單 {work_order} 的詳細記錄"}), 404
             first = result_rows[0]
 
-            dispose_lots, maker_name, product_quantity = [], None, 0
+            dispose_lots, maker_name = [], None
             formulation_date = None
+            titration_qty = 0        # 滴定日數量（有 Pump/Lyophilizer）
+            formulation_qty = 0      # 配藥日數量（無 Pump/Lyophilizer）
             for r in conn.execute(
                 "SELECT Lot, Pump, Lyophilizer, Marker, Quantity, Date, Remark FROM DropletSchedule WHERE TRIM(WorkOrder) LIKE ?",
                 (f"%{work_order.strip()}%",),
@@ -974,11 +976,11 @@ def api_get_workorder():
                 remark   = (r.get("Remark") or "").strip()
                 if pump_val or lyo_val:
                     # 滴定日：有 Pump/Lyophilizer 的才計入製令數量和 disposeLots
-                    product_quantity += safe_int(r.get("Quantity"))
+                    titration_qty += safe_int(r.get("Quantity"))
                     dispose_lots.append({"id": lot_val, "port": pump_val, "freezeDry": lyo_val, "pump": None})
                 else:
-                    # 配藥日：Diluent 等無滴定/凍乾欄位的工單，數量仍來自排程表
-                    product_quantity += safe_int(r.get("Quantity"))
+                    # 配藥日：數量僅在無滴定日記錄時才作為 fallback
+                    formulation_qty += safe_int(r.get("Quantity"))
                     if not formulation_date:
                         formulation_date = r.get("Date")
                     # 若 Lot 或 Remark 有批次資訊，仍建立 disposeLots 供標籤使用
@@ -989,6 +991,8 @@ def api_get_workorder():
                         lot_match = re.search(r"[Ll]ot\s*([\w/\-]+)", remark)
                         lot_id = lot_match.group(1) if lot_match else remark
                         dispose_lots.append({"id": lot_id, "port": "", "freezeDry": "", "pump": None})
+            # 優先使用滴定日數量；僅純配藥工單（無任何滴定日記錄）才用配藥日數量
+            product_quantity = titration_qty if titration_qty > 0 else formulation_qty
 
             pump_ids = []
             if maker_name:
